@@ -20,6 +20,7 @@ type GenerateBody = {
     name?: string;
     source?: string;
     style?: string;
+    title?: string;
     type?: string;
   };
 };
@@ -41,9 +42,10 @@ function completionEndpoint(config: ModelApiConfig) {
 function composeUserPrompt(body: GenerateBody) {
   const node = body.node ?? {};
   const project = body.project ?? {};
+  const projectName = project.name ?? project.title ?? "未命名项目";
 
   return [
-    `项目名称：${project.name ?? "未命名项目"}`,
+    `项目名称：${projectName}`,
     `项目类型：${project.type ?? "AI影视项目"}`,
     `制作目标：${project.goal ?? "生成可用的影视开发素材"}`,
     `素材来源：${project.source ?? "未填写"}`,

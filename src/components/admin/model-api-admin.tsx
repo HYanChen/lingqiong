@@ -120,7 +120,36 @@ export function ModelApiAdmin() {
   }
 
   useEffect(() => {
-    void loadConfigs();
+    let active = true;
+
+    async function loadInitialConfigs() {
+      const response = await fetch("/api/admin/model-apis", { cache: "no-store" });
+
+      if (!active) {
+        return;
+      }
+
+      if (!response.ok) {
+        setError("模型 API 配置加载失败。");
+        setLoading(false);
+        return;
+      }
+
+      const result = (await response.json()) as { configs: PublicModelApiConfig[] };
+
+      if (!active) {
+        return;
+      }
+
+      setConfigs(result.configs);
+      setLoading(false);
+    }
+
+    void loadInitialConfigs();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   function editConfig(config: PublicModelApiConfig) {
