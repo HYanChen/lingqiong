@@ -82,7 +82,18 @@ done
 
 stage "1/8 拉取已验证版本"
 rm -rf "$RELEASE"
-git clone --depth 1 --single-branch --branch "$BRANCH" "$REPOSITORY" "$RELEASE"
+clone_ok=0
+for clone_attempt in 1 2 3 4; do
+  rm -rf "$RELEASE"
+  if git -c http.version=HTTP/1.1 clone --depth 1 --single-branch \
+    --branch "$BRANCH" "$REPOSITORY" "$RELEASE"; then
+    clone_ok=1
+    break
+  fi
+  echo "代码拉取失败，第 ${clone_attempt} 次重试。"
+  sleep $((clone_attempt * 5))
+done
+[[ "$clone_ok" == "1" ]] || { echo "代码拉取重试后仍失败"; exit 1; }
 cp "$ROOT/.env.baota" "$RELEASE/.env.baota"
 if [[ -f "$ROOT/.env" ]]; then
   cp "$ROOT/.env" "$RELEASE/.env"
