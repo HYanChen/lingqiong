@@ -164,40 +164,47 @@ set -a
 source "$ROOT/.env.baota"
 set +a
 
-WECHAT_PAYLOAD="$(python3 - <<'PY'
-import json
-import os
-print(json.dumps({
-    "wechat": {
-        "enabled": True,
-        "mode": "official",
-        "appId": os.environ["WECHAT_APP_ID"],
-        "appSecret": os.environ["WECHAT_APP_SECRET"],
-        "qrTitle": "微信扫码登录",
-        "qrHint": "使用微信扫码登录战纪宇宙统一平台。",
-        "defaultAccount": "微信创作者",
-        "defaultContact": "wechat-user",
-    }
-}, ensure_ascii=False))
-PY
-)"
-curl -fsS -X PUT \
-  -H 'Content-Type: application/json' \
-  -H "X-Lingqiong-Service-Secret: ${JEECG_SERVICE_SECRET}" \
-  --data "$WECHAT_PAYLOAD" \
-  http://127.0.0.1:18080/_wcu-api/admin/login-settings >/tmp/lingqiong-wechat-save.json
-curl -fsS \
-  -H "X-Lingqiong-Service-Secret: ${JEECG_SERVICE_SECRET}" \
-  http://127.0.0.1:18080/_wcu-api/admin/login-settings >/tmp/lingqiong-wechat-check.json
-python3 - <<'PY'
-import json
-import os
-with open('/tmp/lingqiong-wechat-check.json', encoding='utf-8') as handle:
-    data = json.load(handle)
-wechat = data.get('wechat', {})
-if wechat.get('appId') != os.environ['WECHAT_APP_ID'] or not wechat.get('appSecretConfigured'):
-    raise SystemExit('微信登录配置验证失败')
-PY
+docker exec -i \
+  -e WX_APP_ID="$WECHAT_APP_ID" \
+  -e WX_APP_SECRET="$WECHAT_APP_SECRET" \
+  lingqiong-platform-api node <<'NODE'
+const run = async () => {
+  const url = 'http://127.0.0.1:3000/api/admin/login-settings';
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Lingqiong-Service-Secret': process.env.JEECG_SERVICE_SECRET,
+  };
+  const payload = {
+    wechat: {
+      enabled: true,
+      mode: 'official',
+      appId: process.env.WX_APP_ID,
+      appSecret: process.env.WX_APP_SECRET,
+      qrTitle: '微信扫码登录',
+      qrHint: '使用微信扫码登录战纪宇宙统一平台。',
+      defaultAccount: '微信创作者',
+      defaultContact: 'wechat-user',
+    },
+  };
+  const saved = await fetch(url, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify(payload),
+  });
+  if (!saved.ok) throw new Error(`微信配置保存失败：${saved.status}`);
+  const checked = await fetch(url, { headers });
+  if (!checked.ok) throw new Error(`微信配置读取失败：${checked.status}`);
+  const data = await checked.json();
+  if (data.wechat?.appId !== process.env.WX_APP_ID || !data.wechat?.appSecretConfigured) {
+    throw new Error('微信登录配置验证失败');
+  }
+  console.log('WECHAT_CONFIG_OK');
+};
+run().catch((error) => {
+  console.error(error.message);
+  process.exit(1);
+});
+NODE
 
 CHECK_KEY="deploy-admin-${STAMP}"
 curl -fsS "http://127.0.0.1:18080/jeecgboot/sys/randomImage/${CHECK_KEY}" >/tmp/lingqiong-jeecg-captcha.json
