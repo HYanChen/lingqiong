@@ -5,6 +5,7 @@ ROOT="${DEPLOY_ROOT:-/www/wwwroot/pla.wiki}"
 BACKUP_ROOT="${DEPLOY_BACKUP_ROOT:-/www/backup}"
 REPOSITORY="${DEPLOY_REPOSITORY:-https://github.com/HYanChen/lingqiong.git}"
 BRANCH="${DEPLOY_BRANCH:-codex/jeecgboot-full-rebuild}"
+ARCHIVE_URL="${DEPLOY_ARCHIVE_URL:-https://codeload.github.com/HYanChen/lingqiong/tar.gz/refs/heads/codex/jeecgboot-full-rebuild}"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 RELEASE="/www/wwwroot/.pla.wiki-release-${STAMP}"
 PREVIOUS="${BACKUP_ROOT}/pla.wiki-prev-${STAMP}"
@@ -71,7 +72,7 @@ on_error() {
 trap on_error ERR
 trap 'rm -rf "$RELEASE"' EXIT
 
-for command_name in curl docker git gzip openssl python3 rsync tar; do
+for command_name in curl docker git gzip openssl python3 rsync tar timeout; do
   require_command "$command_name"
 done
 
@@ -83,9 +84,9 @@ done
 stage "1/8 拉取已验证版本"
 rm -rf "$RELEASE"
 clone_ok=0
-for clone_attempt in 1 2 3 4; do
+for clone_attempt in 1 2; do
   rm -rf "$RELEASE"
-  if git -c http.version=HTTP/1.1 clone --depth 1 --single-branch \
+  if timeout 120 git -c http.version=HTTP/1.1 clone --depth 1 --single-branch \
     --branch "$BRANCH" "$REPOSITORY" "$RELEASE"; then
     clone_ok=1
     break
@@ -93,7 +94,13 @@ for clone_attempt in 1 2 3 4; do
   echo "代码拉取失败，第 ${clone_attempt} 次重试。"
   sleep $((clone_attempt * 5))
 done
-[[ "$clone_ok" == "1" ]] || { echo "代码拉取重试后仍失败"; exit 1; }
+if [[ "$clone_ok" != "1" ]]; then
+  echo "Git 拉取不稳定，改用 GitHub 归档下载。"
+  rm -rf "$RELEASE"
+  mkdir -p "$RELEASE"
+  curl --http1.1 -fL --retry 6 --retry-delay 5 --retry-all-errors \
+    "$ARCHIVE_URL" | tar -xz --strip-components=1 -C "$RELEASE"
+fi
 cp "$ROOT/.env.baota" "$RELEASE/.env.baota"
 if [[ -f "$ROOT/.env" ]]; then
   cp "$ROOT/.env" "$RELEASE/.env"
