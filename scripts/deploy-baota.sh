@@ -98,7 +98,7 @@ if [[ "$clone_ok" != "1" ]]; then
   echo "Git 拉取不稳定，改用 GitHub 归档下载。"
   rm -rf "$RELEASE"
   mkdir -p "$RELEASE"
-  curl --http1.1 -fL --retry 6 --retry-delay 5 --retry-all-errors \
+  curl -fL --retry 6 --retry-delay 5 \
     "$ARCHIVE_URL" | tar -xz --strip-components=1 -C "$RELEASE"
 fi
 cp "$ROOT/.env.baota" "$RELEASE/.env.baota"
