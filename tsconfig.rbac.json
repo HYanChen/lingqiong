@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "incremental": false,
+    "noEmit": true,
+    "plugins": []
+  },
+  "include": [
+    "src/lib/admin-auth.ts",
+    "src/lib/admin-audit.ts",
+    "src/lib/admin-permissions.ts",
+    "src/lib/admin-users.ts",
+    "src/lib/platform-auth.ts",
+    "src/app/api/admin/**/*.ts",
+    "src/app/api/auth/login/route.ts",
+    "src/app/api/auth/logout/route.ts",
+    "src/components/admin/admin-dashboard.tsx",
+    "src/components/admin/admin-security-admin.tsx",
+    "src/components/auth/platform-login.tsx"
+  ],
+  "exclude": [".next"]
+}

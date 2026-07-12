@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, Sparkles, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { SiteLogin } from "@/components/site-login";
 import type { Brand, NavItem } from "@/content/site";
@@ -17,6 +17,22 @@ type SiteHeaderProps = {
 export function SiteHeader({ brand, navItems }: SiteHeaderProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [open]);
 
   return (
     <header className="fixed left-0 right-0 top-0 z-50 border-b border-white/10 bg-zinc-950/68 backdrop-blur-2xl">

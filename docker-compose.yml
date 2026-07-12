@@ -1,0 +1,224 @@
+services:
+  proxy:
+    image: nginx:1.27-alpine
+    container_name: zhanji-gateway
+    restart: unless-stopped
+    depends_on:
+      - web
+      - platform-api
+      - new-api
+      - bookstack
+    ports:
+      - "80:80"
+    volumes:
+      - ./infra/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+
+  web:
+    build:
+      context: .
+    container_name: zhanji-web
+    restart: unless-stopped
+    depends_on:
+      platform-api:
+        condition: service_healthy
+    expose:
+      - "3000"
+    environment:
+      NODE_ENV: production
+      TZ: "${TZ:-Asia/Shanghai}"
+      PLATFORM_API_INTERNAL_URL: "http://platform-api:3000/api/v1"
+      PLATFORM_API_TIMEOUT_MS: "${PLATFORM_API_TIMEOUT_MS:-3500}"
+      PLATFORM_RUNTIME_ROLE: web
+      PLATFORM_AUTH_SECRET: "${PLATFORM_AUTH_SECRET:-zhanji-platform-local-secret}"
+      WCU_PUBLIC_BASE_URL: "${WCU_PUBLIC_BASE_URL:-http://localhost}"
+    volumes:
+      - ./data/site-media:/app/data/site-media:ro
+
+  platform-api:
+    build:
+      context: .
+    container_name: zhanji-platform-api
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    expose:
+      - "3000"
+    environment:
+      NODE_ENV: production
+      TZ: "${TZ:-Asia/Shanghai}"
+      PLATFORM_RUNTIME_ROLE: api
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_DATABASE: "${MYSQL_DATABASE:-zhanji_universe}"
+      MYSQL_USER: "${MYSQL_USER:-zhanji}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-zhanji-local-password}"
+      ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-zhanji2026}"
+      ADMIN_COOKIE_SECURE: "${ADMIN_COOKIE_SECURE:-false}"
+      NEW_API_ADMIN_PUBLIC_URL: "${NEW_API_ADMIN_PUBLIC_URL:-http://localhost/api}"
+      NEW_API_INTERNAL_BASE_URL: "${NEW_API_INTERNAL_BASE_URL:-http://new-api:3000/v1}"
+      NEW_API_SERVER_BASE_URL: "${NEW_API_SERVER_BASE_URL:-http://new-api:3000}"
+      NEW_API_MYSQL_DATABASE: "${NEW_API_MYSQL_DATABASE:-new_api}"
+      NEW_API_ACCOUNT_BRIDGE_SECRET: "${NEW_API_ACCOUNT_BRIDGE_SECRET:-lingqiong-local-account-bridge-secret}"
+      MODEL_API_RPM_LIMIT: "${MODEL_API_RPM_LIMIT:-12}"
+      MODEL_API_CONCURRENCY_LIMIT: "${MODEL_API_CONCURRENCY_LIMIT:-2}"
+      MODEL_API_DAILY_LIMIT: "${MODEL_API_DAILY_LIMIT:-100}"
+      MODEL_API_LOG_RETENTION_DAYS: "${MODEL_API_LOG_RETENTION_DAYS:-30}"
+      MODEL_API_LOG_PROMPT_CHARS: "${MODEL_API_LOG_PROMPT_CHARS:-12000}"
+      MODEL_API_LOG_RESPONSE_CHARS: "${MODEL_API_LOG_RESPONSE_CHARS:-24000}"
+      PLATFORM_AUTH_SECRET: "${PLATFORM_AUTH_SECRET:-zhanji-platform-local-secret}"
+      WCU_ALLOW_DATABASE_FALLBACK: "false"
+      WCU_PUBLIC_BASE_URL: "${WCU_PUBLIC_BASE_URL:-http://localhost}"
+      WCU_OIDC_CLIENT_ID: "${WCU_OIDC_CLIENT_ID:-zhanji-bookstack}"
+      WCU_OIDC_CLIENT_SECRET: "${WCU_OIDC_CLIENT_SECRET:-zhanji-bookstack-local-secret}"
+      WCU_OIDC_ISSUER: "${WCU_OIDC_ISSUER:-http://platform-api:3000/api/oidc}"
+      WCU_OIDC_REDIRECT_URIS: "${WCU_OIDC_REDIRECT_URIS:-http://localhost/bookstack/oidc/callback,http://localhost/oauth/oidc,http://127.0.0.1/bookstack/oidc/callback,http://127.0.0.1/oauth/oidc}"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q --spider http://127.0.0.1:3000/api/v1/health || exit 1"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    volumes:
+      - ./data:/app/data
+
+  new-api-oidc-init:
+    image: lingqiong_web:latest
+    build:
+      context: .
+    container_name: zhanji-new-api-oidc-init
+    restart: "no"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    command: ["node", "scripts/sync-new-api-oidc.mjs"]
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_USER: "${MYSQL_USER:-zhanji}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-zhanji-local-password}"
+      NEW_API_MYSQL_DATABASE: "${NEW_API_MYSQL_DATABASE:-new_api}"
+      WCU_PUBLIC_BASE_URL: "${WCU_PUBLIC_BASE_URL:-http://localhost}"
+      WCU_OIDC_CLIENT_ID: "${WCU_OIDC_CLIENT_ID:-zhanji-bookstack}"
+      WCU_OIDC_CLIENT_SECRET: "${WCU_OIDC_CLIENT_SECRET:-zhanji-bookstack-local-secret}"
+      WCU_OIDC_ISSUER: "${WCU_OIDC_ISSUER:-http://platform-api:3000/api/oidc}"
+
+  new-api:
+    image: calciumion/new-api@sha256:b48008e35e4213836287b375c20df6278a49a36499c46311f3ef15210d0d4095
+    container_name: zhanji-new-api
+    restart: unless-stopped
+    command: --log-dir /app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      new-api-oidc-init:
+        condition: service_completed_successfully
+    expose:
+      - "3000"
+    volumes:
+      - ./data/new-api:/data
+      - ./data/new-api/logs:/app/logs
+    environment:
+      TZ: "${TZ:-Asia/Shanghai}"
+      SQL_DSN: "${MYSQL_USER:-zhanji}:${MYSQL_PASSWORD:-zhanji-local-password}@tcp(mysql:3306)/new_api?charset=utf8mb4&parseTime=true&loc=Local"
+      ERROR_LOG_ENABLED: "true"
+      BATCH_UPDATE_ENABLED: "true"
+      MEMORY_CACHE_ENABLED: "true"
+      NODE_NAME: zhanji-new-api
+      SESSION_SECRET: "${NEW_API_SESSION_SECRET:-change-this-local-secret}"
+
+  bookstack-db-init:
+    image: mysql:8.4
+    container_name: zhanji-bookstack-db-init
+    restart: "no"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_PWD: "${MYSQL_ROOT_PASSWORD:-zhanji-local-root-password}"
+      BOOKSTACK_DATABASE: "${BOOKSTACK_DATABASE:-bookstack}"
+      MYSQL_USER: "${MYSQL_USER:-zhanji}"
+    command:
+      - sh
+      - -c
+      - |
+        mysql -hmysql -uroot -e "CREATE DATABASE IF NOT EXISTS \`$${BOOKSTACK_DATABASE}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON \`$${BOOKSTACK_DATABASE}\`.* TO '$${MYSQL_USER}'@'%'; FLUSH PRIVILEGES;"
+
+  bookstack:
+    image: lscr.io/linuxserver/bookstack:latest
+    container_name: zhanji-bookstack
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      bookstack-db-init:
+        condition: service_completed_successfully
+    expose:
+      - "80"
+    volumes:
+      - ./data/bookstack:/config
+      - ./infra/bookstack/custom-cont-init.d:/custom-cont-init.d:ro
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: "${TZ:-Asia/Shanghai}"
+      APP_URL: "${BOOKSTACK_APP_URL:-http://localhost/bookstack}"
+      APP_KEY: "${BOOKSTACK_APP_KEY:-base64:0W2KfUk79xIWHy1+gHOEwlMqwPBtw6IFGjMq9imQ2xA=}"
+      APP_LANG: "${BOOKSTACK_APP_LANG:-zh_CN}"
+      APP_PROXIES: "*"
+      BOOKSTACK_BRAND_NAME: "${BOOKSTACK_BRAND_NAME:-灵穹知识库}"
+      BOOKSTACK_BRAND_COLOR: "${BOOKSTACK_BRAND_COLOR:-#14b8a6}"
+      BOOKSTACK_LINK_COLOR: "${BOOKSTACK_LINK_COLOR:-#22d3ee}"
+      SESSION_COOKIE_NAME: bookstack_session
+      SESSION_SECURE_COOKIE: "${BOOKSTACK_SESSION_SECURE_COOKIE:-false}"
+      AUTH_METHOD: oidc
+      AUTH_AUTO_INITIATE: "true"
+      OIDC_NAME: "战纪宇宙统一登录"
+      OIDC_CLIENT_ID: "${WCU_OIDC_CLIENT_ID:-zhanji-bookstack}"
+      OIDC_CLIENT_SECRET: "${WCU_OIDC_CLIENT_SECRET:-zhanji-bookstack-local-secret}"
+      OIDC_ISSUER: "${WCU_OIDC_ISSUER:-http://platform-api:3000/api/oidc}"
+      OIDC_ISSUER_DISCOVER: "true"
+      OIDC_DISPLAY_NAME_CLAIMS: "name"
+      OIDC_EXTERNAL_ID_CLAIM: "sub"
+      OIDC_USER_TO_GROUPS: "true"
+      OIDC_GROUPS_CLAIM: "groups"
+      OIDC_REMOVE_FROM_GROUPS: "false"
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_DATABASE: "${BOOKSTACK_DATABASE:-bookstack}"
+      DB_USERNAME: "${MYSQL_USER:-zhanji}"
+      DB_PASSWORD: "${MYSQL_PASSWORD:-zhanji-local-password}"
+
+  mysql:
+    image: mysql:8.4
+    container_name: zhanji-mysql
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:-zhanji-local-root-password}"
+      MYSQL_DATABASE: "${MYSQL_DATABASE:-zhanji_universe}"
+      MYSQL_USER: "${MYSQL_USER:-zhanji}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-zhanji-local-password}"
+      TZ: "${TZ:-Asia/Shanghai}"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h 127.0.0.1 -u$${MYSQL_USER} -p$${MYSQL_PASSWORD} --silent"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 20s
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+      - ./infra/mysql/init:/docker-entrypoint-initdb.d:ro

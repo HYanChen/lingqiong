@@ -4,11 +4,12 @@ export const frontAuthChangedEvent = "wcu_front_user_changed";
 export type FrontUser = {
   account: string;
   createdAt: string;
+  role?: "admin" | "creator";
   id?: string;
   contact?: string;
   inviteCode?: string;
   profile?: string;
-  source?: "login" | "demo" | "invite";
+  source?: "admin" | "apple" | "github" | "google" | "login" | "demo" | "invite" | "wechat";
 };
 
 export function readFrontUser(): FrontUser | null {
@@ -37,4 +38,20 @@ export function writeFrontUser(user: FrontUser) {
 export function clearFrontUser() {
   window.localStorage.removeItem(frontUserStorageKey);
   window.dispatchEvent(new Event(frontAuthChangedEvent));
+}
+
+export async function fetchFrontUser() {
+  const response = await fetch("/_wcu-api/auth/me", { cache: "no-store" });
+  const result = (await response.json().catch(() => null)) as null | {
+    authenticated?: boolean;
+    user?: FrontUser;
+  };
+
+  if (response.ok && result?.authenticated && result.user) {
+    writeFrontUser(result.user);
+    return result.user;
+  }
+
+  clearFrontUser();
+  return null;
 }

@@ -1,27 +1,38 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { headers } from "next/headers";
 
-import { SiteFooter } from "@/components/site-footer";
-import { SiteHeader } from "@/components/site-header";
-import { getSiteData } from "@/lib/site-data";
+import { AppShell } from "@/components/app-shell";
+import { getPlatformSiteData } from "@/lib/platform-api-client";
 
-import "@xyflow/react/dist/style.css";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"]
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"]
-});
 
 export const dynamic = "force-dynamic";
 
+async function requestPathname() {
+  const headerStore = await headers();
+  return headerStore.get("x-wcu-pathname") ?? "";
+}
+
+function isSeparatedRoute(pathname: string) {
+  return (
+    pathname.startsWith("/account") ||
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/api") ||
+    pathname.startsWith("/create") ||
+    pathname.startsWith("/knowledge") ||
+    pathname.startsWith("/projects") ||
+    pathname.startsWith("/wechat-login")
+  );
+}
+
 export async function generateMetadata(): Promise<Metadata> {
-  const { brand } = await getSiteData();
+  if (isSeparatedRoute(await requestPathname())) {
+    return {
+      title: "战纪宇宙"
+    };
+  }
+
+  const { brand } = await getPlatformSiteData();
 
   return {
     title: {
@@ -29,7 +40,9 @@ export async function generateMetadata(): Promise<Metadata> {
       template: `%s | ${brand.name}`
     },
     description: brand.tagline,
-    metadataBase: new URL("https://war-chronicle-universe.local"),
+    metadataBase: new URL(
+      process.env.WCU_PUBLIC_BASE_URL || "https://pla.wiki"
+    ),
     openGraph: {
       title: brand.name,
       description: brand.tagline,
@@ -52,14 +65,13 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const data = await getSiteData();
+  const pathname = await requestPathname();
+  const data = isSeparatedRoute(pathname) ? null : await getPlatformSiteData();
 
   return (
     <html data-scroll-behavior="smooth" lang="zh-CN">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <SiteHeader brand={data.brand} navItems={data.navItems} />
-        <main>{children}</main>
-        <SiteFooter data={data} />
+      <body className="antialiased">
+        {data ? <AppShell data={data}>{children}</AppShell> : <main>{children}</main>}
       </body>
     </html>
   );

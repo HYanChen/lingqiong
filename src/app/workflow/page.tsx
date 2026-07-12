@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { WorkflowStudio } from "@/components/workflow/workflow-studio";
-import { getSiteData } from "@/lib/site-data";
+import { getPlatformSiteData } from "@/lib/platform-api-client";
 
 export const metadata: Metadata = {
   title: "AI 影视生产线",
@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 export default async function WorkflowPage() {
-  const { media, pipelineSteps, services, works } = await getSiteData();
+  const { media, pipelineSteps, services, works } = await getPlatformSiteData();
 
   return (
     <WorkflowStudio

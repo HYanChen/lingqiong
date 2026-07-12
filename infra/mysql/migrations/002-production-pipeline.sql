@@ -1,0 +1,120 @@
+CREATE TABLE IF NOT EXISTS episodes (
+  id VARCHAR(191) PRIMARY KEY,
+  project_id VARCHAR(191) NOT NULL,
+  episode_number INT NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  summary LONGTEXT NOT NULL,
+  script LONGTEXT NOT NULL,
+  status VARCHAR(40) NOT NULL DEFAULT 'draft',
+  sort_order INT NOT NULL DEFAULT 0,
+  created_at VARCHAR(40) NOT NULL,
+  updated_at VARCHAR(40) NOT NULL,
+  UNIQUE KEY uq_episodes_project_number (project_id, episode_number),
+  INDEX idx_episodes_project_sort (project_id, sort_order, episode_number),
+  INDEX idx_episodes_project_status (project_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS elements (
+  id VARCHAR(191) PRIMARY KEY,
+  project_id VARCHAR(191) NOT NULL,
+  episode_id VARCHAR(191),
+  kind VARCHAR(40) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  aliases_json LONGTEXT NOT NULL,
+  prompt LONGTEXT NOT NULL,
+  description LONGTEXT NOT NULL,
+  notes LONGTEXT NOT NULL,
+  reference_image_url VARCHAR(2048),
+  voice_profile_id VARCHAR(191),
+  status VARCHAR(40) NOT NULL DEFAULT 'draft',
+  sort_order INT NOT NULL DEFAULT 0,
+  created_at VARCHAR(40) NOT NULL,
+  updated_at VARCHAR(40) NOT NULL,
+  INDEX idx_elements_project_kind_sort (project_id, kind, sort_order),
+  INDEX idx_elements_project_episode (project_id, episode_id),
+  INDEX idx_elements_project_status (project_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS storyboards (
+  id VARCHAR(191) PRIMARY KEY,
+  project_id VARCHAR(191) NOT NULL,
+  episode_id VARCHAR(191) NOT NULL,
+  shot_number INT NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  prompt LONGTEXT NOT NULL,
+  negative_prompt LONGTEXT NOT NULL,
+  dialogue LONGTEXT NOT NULL,
+  camera VARCHAR(500) NOT NULL,
+  duration_ms INT NOT NULL DEFAULT 3000,
+  element_ids_json LONGTEXT NOT NULL,
+  reference_image_url VARCHAR(2048),
+  image_url VARCHAR(2048),
+  video_url VARCHAR(2048),
+  status VARCHAR(40) NOT NULL DEFAULT 'draft',
+  sort_order INT NOT NULL DEFAULT 0,
+  created_at VARCHAR(40) NOT NULL,
+  updated_at VARCHAR(40) NOT NULL,
+  UNIQUE KEY uq_storyboards_episode_shot (episode_id, shot_number),
+  INDEX idx_storyboards_project_episode_sort (project_id, episode_id, sort_order, shot_number),
+  INDEX idx_storyboards_project_status (project_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS voiceovers (
+  id VARCHAR(191) PRIMARY KEY,
+  project_id VARCHAR(191) NOT NULL,
+  episode_id VARCHAR(191) NOT NULL,
+  storyboard_id VARCHAR(191),
+  role_element_id VARCHAR(191),
+  line_text LONGTEXT NOT NULL,
+  speaker_name VARCHAR(255) NOT NULL,
+  voice_profile_id VARCHAR(191),
+  audio_url VARCHAR(2048),
+  duration_ms INT NOT NULL DEFAULT 0,
+  status VARCHAR(40) NOT NULL DEFAULT 'draft',
+  sort_order INT NOT NULL DEFAULT 0,
+  created_at VARCHAR(40) NOT NULL,
+  updated_at VARCHAR(40) NOT NULL,
+  INDEX idx_voiceovers_project_episode_sort (project_id, episode_id, sort_order),
+  INDEX idx_voiceovers_project_storyboard (project_id, storyboard_id),
+  INDEX idx_voiceovers_project_role (project_id, role_element_id),
+  INDEX idx_voiceovers_project_status (project_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS compositions (
+  id VARCHAR(191) PRIMARY KEY,
+  project_id VARCHAR(191) NOT NULL,
+  episode_id VARCHAR(191) NOT NULL,
+  timeline_json LONGTEXT NOT NULL,
+  settings_json LONGTEXT NOT NULL,
+  output_url VARCHAR(2048),
+  status VARCHAR(40) NOT NULL DEFAULT 'draft',
+  revision INT NOT NULL DEFAULT 1,
+  created_at VARCHAR(40) NOT NULL,
+  updated_at VARCHAR(40) NOT NULL,
+  UNIQUE KEY uq_compositions_project_episode (project_id, episode_id),
+  INDEX idx_compositions_project_status (project_id, status),
+  INDEX idx_compositions_project_updated (project_id, updated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS generation_jobs (
+  id VARCHAR(191) PRIMARY KEY,
+  project_id VARCHAR(191) NOT NULL,
+  episode_id VARCHAR(191),
+  resource_type VARCHAR(40) NOT NULL,
+  resource_id VARCHAR(191) NOT NULL,
+  task_type VARCHAR(80) NOT NULL,
+  status VARCHAR(40) NOT NULL DEFAULT 'queued',
+  input_json LONGTEXT NOT NULL,
+  output_json LONGTEXT,
+  error LONGTEXT,
+  model_config_id VARCHAR(191),
+  created_by_id VARCHAR(191),
+  created_by_account VARCHAR(255),
+  attempt_count INT NOT NULL DEFAULT 0,
+  created_at VARCHAR(40) NOT NULL,
+  updated_at VARCHAR(40) NOT NULL,
+  INDEX idx_generation_jobs_project_created (project_id, created_at),
+  INDEX idx_generation_jobs_project_episode (project_id, episode_id),
+  INDEX idx_generation_jobs_project_status (project_id, status),
+  INDEX idx_generation_jobs_resource (project_id, resource_type, resource_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

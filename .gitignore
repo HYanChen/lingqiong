@@ -4,8 +4,12 @@ out
 dist
 .env*
 !.env.example
+!.env.new-api.example
+!.env.baota.example
 .DS_Store
 *.log
-data/*.sqlite
-data/*.sqlite-shm
-data/*.sqlite-wal
+.pnpm-store/
+.vscode/
+data/
+work_assets/
+tsconfig.tsbuildinfo

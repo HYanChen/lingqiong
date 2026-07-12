@@ -14,27 +14,33 @@ function getInviteCodes() {
 
 export async function seedInviteCodes() {
   const codes = getInviteCodes();
-  const missingCodes = await readDatabase((db) =>
-    codes.filter((code) => {
-      const row = getFirstRow<{ code: string }>(
+  const missingCodes = await readDatabase(async (db) => {
+    const missing: string[] = [];
+
+    for (const code of codes) {
+      const row = await getFirstRow<{ code: string }>(
         db,
         "SELECT code FROM invite_codes WHERE code = ?",
         [code]
       );
 
-      return !row?.code;
-    })
-  );
+      if (!row?.code) {
+        missing.push(code);
+      }
+    }
+
+    return missing;
+  });
 
   if (!missingCodes.length) {
     return;
   }
 
-  await writeDatabase((db) => {
+  await writeDatabase(async (db) => {
     const now = new Date().toISOString();
 
     for (const code of missingCodes) {
-      db.run(
+      await db.execute(
         `INSERT INTO invite_codes (code, label, active, used_count, created_at, updated_at)
          VALUES (?, ?, 1, 0, ?, ?)`,
         [code, "默认邀请码", now, now]
@@ -52,8 +58,8 @@ export async function isValidInviteCode(value: string) {
 
   await seedInviteCodes();
 
-  return readDatabase((db) => {
-    const row = getFirstRow<{ code: string }>(
+  return readDatabase(async (db) => {
+    const row = await getFirstRow<{ code: string }>(
       db,
       "SELECT code FROM invite_codes WHERE code = ? AND active = 1",
       [code]

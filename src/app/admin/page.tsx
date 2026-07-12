@@ -3,8 +3,12 @@ import type { Metadata } from "next";
 import { AdminDashboard } from "@/components/admin/admin-dashboard";
 
 export const metadata: Metadata = {
-  title: "后台管理",
-  description: "战纪宇宙官网内容后台。"
+  title: "管理后台",
+  description: "战纪宇宙授权管理员登录与管理后台。",
+  robots: {
+    follow: false,
+    index: false
+  }
 };
 
 export default function AdminPage() {

@@ -22,7 +22,7 @@ type PublicModelApiConfig = {
   maxTokens: number;
   model: string;
   name: string;
-  provider: "mock" | "openai-compatible";
+  provider: "mock" | "new-api" | "openai-compatible";
   systemPrompt: string;
   temperature: number;
   updatedAt: string;
@@ -36,23 +36,50 @@ type ApiForm = {
   maxTokens: number;
   model: string;
   name: string;
-  provider: "mock" | "openai-compatible";
+  provider: "mock" | "new-api" | "openai-compatible";
   systemPrompt: string;
   temperature: number;
 };
 
 const emptyForm: ApiForm = {
   apiKey: "",
-  baseUrl: "https://api.openai.com/v1",
+  baseUrl: "http://new-api:3000/v1",
   enabled: true,
   id: "",
   maxTokens: 1200,
   model: "gpt-4o-mini",
-  name: "默认模型 API",
-  provider: "openai-compatible",
+  name: "灵穹 API 网关",
+  provider: "new-api",
   systemPrompt:
     "你是战纪宇宙 AI 影视生产线助手。请输出可直接用于影视开发的中文内容，结构清晰，避免虚构真实播放数据、备案号、客户案例。",
   temperature: 0.7
+};
+
+const providerLabels: Record<ApiForm["provider"], string> = {
+  mock: "本地模拟模型",
+  "new-api": "灵穹 API 网关",
+  "openai-compatible": "OpenAI 兼容接口"
+};
+
+const providerPresets: Record<ApiForm["provider"], Pick<ApiForm, "baseUrl" | "model" | "name" | "provider">> = {
+  mock: {
+    baseUrl: "local://mock",
+    model: "mock-cinema",
+    name: "本地模拟模型",
+    provider: "mock"
+  },
+  "new-api": {
+    baseUrl: "http://new-api:3000/v1",
+    model: "gpt-4o-mini",
+    name: "灵穹 API 网关",
+    provider: "new-api"
+  },
+  "openai-compatible": {
+    baseUrl: "https://api.openai.com/v1",
+    model: "gpt-4o-mini",
+    name: "OpenAI 兼容接口",
+    provider: "openai-compatible"
+  }
 };
 
 function Field({
@@ -106,7 +133,7 @@ export function ModelApiAdmin() {
 
   async function loadConfigs() {
     setLoading(true);
-    const response = await fetch("/api/admin/model-apis", { cache: "no-store" });
+    const response = await fetch("/_wcu-api/admin/model-apis", { cache: "no-store" });
 
     if (!response.ok) {
       setError("模型 API 配置加载失败。");
@@ -120,7 +147,11 @@ export function ModelApiAdmin() {
   }
 
   useEffect(() => {
-    void loadConfigs();
+    const timer = window.setTimeout(() => {
+      void loadConfigs();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, []);
 
   function editConfig(config: PublicModelApiConfig) {
@@ -136,7 +167,25 @@ export function ModelApiAdmin() {
       systemPrompt: config.systemPrompt,
       temperature: config.temperature
     });
-    setMessage("正在编辑配置。如不填写 API Key，会保留原 Key。");
+    setMessage(
+      config.provider === "new-api"
+        ? "正在编辑灵穹 API 模型配置。用户凭证由平台自动关联，无需填写共享 Key。"
+        : "正在编辑配置。如不填写 API Key，会保留原 Key。"
+    );
+    setError("");
+  }
+
+  function applyProviderPreset(provider: ApiForm["provider"]) {
+    setForm((current) => ({
+      ...current,
+      ...providerPresets[provider],
+      apiKey: provider === current.provider ? current.apiKey : ""
+    }));
+    setMessage(
+      provider === "new-api"
+        ? "已切换为灵穹 API 网关：平台会按当前用户自动使用独立凭证。"
+        : ""
+    );
     setError("");
   }
 
@@ -146,7 +195,7 @@ export function ModelApiAdmin() {
     setError("");
     setMessage("");
 
-    const response = await fetch("/api/admin/model-apis", {
+    const response = await fetch("/_wcu-api/admin/model-apis", {
       body: JSON.stringify(form),
       headers: { "Content-Type": "application/json" },
       method: "POST"
@@ -171,7 +220,7 @@ export function ModelApiAdmin() {
     setError("");
     setMessage("");
 
-    const response = await fetch("/api/admin/model-apis", {
+    const response = await fetch("/_wcu-api/admin/model-apis", {
       body: JSON.stringify({ id }),
       headers: { "Content-Type": "application/json" },
       method: "DELETE"
@@ -207,12 +256,38 @@ export function ModelApiAdmin() {
           <div>
             <h2 className="text-lg font-semibold text-stone-50">模型 API 配置</h2>
             <p className="mt-1 text-xs text-stone-500">
-              前台只调用站内接口，Key 保存在服务端 SQLite。
+              选择可用模型与生成参数；灵穹 API 按用户独立计费。
             </p>
           </div>
         </div>
 
         <div className="grid gap-4">
+          <div className="grid gap-2 rounded-lg border border-cyan-200/15 bg-cyan-200/10 p-3">
+            <p className="text-xs font-medium text-cyan-50">推荐接入方式</p>
+            <p className="text-xs leading-6 text-cyan-50/75">
+              本项目已集成灵穹 API。请保存 Base URL、模型名、参数和系统提示词；服务端会通过容器内安全地址，使用当前用户的内部凭证调用。
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {(["new-api", "openai-compatible", "mock"] as ApiForm["provider"][]).map(
+                (provider) => (
+                  <button
+                    className={cn(
+                      "rounded-lg border px-3 py-2 text-xs font-medium transition",
+                      form.provider === provider
+                        ? "border-cyan-200 bg-cyan-200 text-zinc-950"
+                        : "border-white/10 bg-black/20 text-stone-300 hover:border-cyan-200/50 hover:text-white"
+                    )}
+                    key={provider}
+                    onClick={() => applyProviderPreset(provider)}
+                    type="button"
+                  >
+                    {providerLabels[provider]}
+                  </button>
+                )
+              )}
+            </div>
+          </div>
+
           <Field
             label="配置名称"
             onChange={(value) => setForm((current) => ({ ...current, name: value }))}
@@ -224,15 +299,11 @@ export function ModelApiAdmin() {
             <select
               className="mt-2 w-full rounded-lg border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-stone-100 outline-none"
               onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  baseUrl:
-                    event.target.value === "mock" ? "local://mock" : current.baseUrl,
-                  provider: event.target.value as ApiForm["provider"]
-                }))
+                applyProviderPreset(event.target.value as ApiForm["provider"])
               }
               value={form.provider}
             >
+              <option value="new-api">灵穹 API 网关</option>
               <option value="openai-compatible">OpenAI 兼容接口</option>
               <option value="mock">本地模拟模型</option>
             </select>
@@ -252,13 +323,22 @@ export function ModelApiAdmin() {
             value={form.model}
           />
 
-          <Field
-            label={form.id ? "API Key（留空则保留原 Key）" : "API Key"}
-            onChange={(value) => setForm((current) => ({ ...current, apiKey: value }))}
-            placeholder="sk-..."
-            type="password"
-            value={form.apiKey}
-          />
+          {form.provider === "new-api" ? (
+            <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/10 px-4 py-3">
+              <p className="text-xs font-medium text-emerald-100">用户认证：自动隔离</p>
+              <p className="mt-1 text-xs leading-6 text-emerald-50/70">
+                无需录入共享 API Key。每个已登录用户都会获取独立内部凭证，请求按其自身余额扣费。
+              </p>
+            </div>
+          ) : (
+            <Field
+              label={form.id ? "API Key（留空则保留原 Key）" : "API Key"}
+              onChange={(value) => setForm((current) => ({ ...current, apiKey: value }))}
+              placeholder="sk-..."
+              type="password"
+              value={form.apiKey}
+            />
+          )}
 
           <Field
             label="系统提示词"
@@ -361,14 +441,16 @@ export function ModelApiAdmin() {
                       </span>
                     </div>
                     <p className="mt-2 text-xs leading-6 text-stone-500">
-                      {config.provider} / {config.model}
+                      {providerLabels[config.provider]} / {config.model}
                     </p>
                     <p className="mt-1 break-all text-xs leading-6 text-stone-500">
                       {config.baseUrl}
                     </p>
                     <p className="mt-2 inline-flex items-center gap-2 text-xs text-stone-400">
                       <KeyRound aria-hidden="true" className="h-3.5 w-3.5" />
-                      {config.apiKeyPreview}
+                      {config.provider === "new-api"
+                        ? "按用户自动分配内部凭证"
+                        : config.apiKeyPreview}
                     </p>
                   </div>
                   <div className="flex shrink-0 gap-2">

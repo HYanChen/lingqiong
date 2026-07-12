@@ -1,0 +1,6 @@
+[submodule "vendor/new-api"]
+	path = vendor/new-api
+	url = https://github.com/QuantumNous/new-api.git
+[submodule "vendor/bookstack"]
+	path = vendor/bookstack
+	url = https://github.com/BookStackApp/BookStack.git

@@ -41,6 +41,7 @@ export type NavItem = {
 
 export type MediaMap = {
   hero: string;
+  heroVideo: string;
   spark: string;
   workflow: string;
   generations: string;
@@ -83,6 +84,17 @@ export type Service = {
   icon: IconKey;
 };
 
+export type TeamMember = {
+  avatar: string;
+  expertise: string[];
+  highlights: string[];
+  name: string;
+  role: string;
+  group: string;
+  bio: string;
+  slug: string;
+};
+
 export type SiteData = {
   brand: Brand;
   company: Company;
@@ -92,11 +104,13 @@ export type SiteData = {
   works: Work[];
   pipelineSteps: PipelineStep[];
   services: Service[];
+  teamMembers: TeamMember[];
   proofPoints: string[];
 };
 
 const defaultMedia: MediaMap = {
   hero: "/media/hero-war-chronicle.png",
+  heroVideo: "/media/hero-war-chronicle-loop.mp4",
   spark: "/media/work-spark.png",
   workflow: "/media/workflow-studio.png",
   generations: "/media/universe-generations.png",
@@ -332,6 +346,88 @@ export const defaultSiteData: SiteData = {
       icon: "Sparkles"
     }
   ],
+  teamMembers: [
+    {
+      avatar: "",
+      expertise: [],
+      highlights: [],
+      name: "周戈",
+      role: "领军人物",
+      group: "领军人物",
+      bio: "",
+      slug: "zhou-ge"
+    },
+    {
+      avatar: "",
+      expertise: [],
+      highlights: [],
+      name: "杨开井",
+      role: "战略投资顾问",
+      group: "战略投资顾问",
+      bio: "",
+      slug: "yang-kai-jing"
+    },
+    {
+      avatar: "",
+      expertise: [],
+      highlights: [],
+      name: "瞿烁",
+      role: "战略投资顾问",
+      group: "战略投资顾问",
+      bio: "",
+      slug: "qu-shuo"
+    },
+    {
+      avatar: "",
+      expertise: [],
+      highlights: [],
+      name: "胡砚尘",
+      role: "执行董事",
+      group: "核心团队",
+      bio: "",
+      slug: "hu-yan-chen"
+    },
+    {
+      avatar: "",
+      expertise: [],
+      highlights: [],
+      name: "孙超",
+      role: "总经理",
+      group: "核心团队",
+      bio: "",
+      slug: "sun-chao"
+    },
+    {
+      avatar: "",
+      expertise: [],
+      highlights: [],
+      name: "廖文基",
+      role: "技术总监",
+      group: "核心团队",
+      bio: "",
+      slug: "liao-wen-ji"
+    },
+    {
+      avatar: "",
+      expertise: [],
+      highlights: [],
+      name: "申家铭",
+      role: "运营总监",
+      group: "核心团队",
+      bio: "",
+      slug: "shen-jia-ming"
+    },
+    {
+      avatar: "",
+      expertise: [],
+      highlights: [],
+      name: "谢欣阳",
+      role: "生产总监",
+      group: "核心团队",
+      bio: "",
+      slug: "xie-xin-yang"
+    }
+  ],
   proofPoints: [
     "原创 AI 影视宇宙",
     "作品开发与服务现金流分离",
@@ -346,3 +442,4 @@ export const universeChapters = defaultSiteData.universeChapters;
 export const works = defaultSiteData.works;
 export const pipelineSteps = defaultSiteData.pipelineSteps;
 export const services = defaultSiteData.services;
+export const teamMembers = defaultSiteData.teamMembers;

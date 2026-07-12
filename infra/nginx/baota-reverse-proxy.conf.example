@@ -1,0 +1,79 @@
+# 放入宝塔站点的 server 块中，并由宝塔为该站点签发 HTTPS 证书。
+# 保留宝塔自动生成的 ACME 证书验证配置，删除宝塔默认的静态资源缓存
+# location；下列高优先级路径必须全部交给 Docker 网关，否则官网资源、
+# New API、BookStack 或 Next.js 页面会出现线上与本地不一致。
+client_max_body_size 100m;
+
+location ^~ /_next/ {
+    try_files /__lingqiong_gateway_never_exists__ @lingqiong_gateway;
+}
+
+location ^~ /_wcu-api/ {
+    try_files /__lingqiong_gateway_never_exists__ @lingqiong_gateway;
+}
+
+location ^~ /platform-api/ {
+    try_files /__lingqiong_gateway_never_exists__ @lingqiong_gateway;
+}
+
+location ^~ /bookstack/ {
+    try_files /__lingqiong_gateway_never_exists__ @lingqiong_gateway;
+}
+
+location ^~ /api/ {
+    try_files /__lingqiong_gateway_never_exists__ @lingqiong_gateway;
+}
+
+location ^~ /static/ {
+    try_files /__lingqiong_gateway_never_exists__ @lingqiong_gateway;
+}
+
+location ^~ /assets/ {
+    try_files /__lingqiong_gateway_never_exists__ @lingqiong_gateway;
+}
+
+location ^~ /media/ {
+    try_files /__lingqiong_gateway_never_exists__ @lingqiong_gateway;
+}
+
+location ^~ /v1/ {
+    try_files /__lingqiong_gateway_never_exists__ @lingqiong_gateway;
+}
+
+location ^~ /pg/ {
+    try_files /__lingqiong_gateway_never_exists__ @lingqiong_gateway;
+}
+
+location = /favicon.ico {
+    try_files /__lingqiong_gateway_never_exists__ @lingqiong_gateway;
+}
+
+location = /logo.png {
+    try_files /__lingqiong_gateway_never_exists__ @lingqiong_gateway;
+}
+
+location = /manifest.json {
+    try_files /__lingqiong_gateway_never_exists__ @lingqiong_gateway;
+}
+
+location / {
+    try_files /__lingqiong_gateway_never_exists__ @lingqiong_gateway;
+}
+
+location @lingqiong_gateway {
+    proxy_pass http://127.0.0.1:18080;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Port 443;
+    proxy_set_header X-Real-IP $remote_addr;
+    # 覆盖客户端自带的 X-Forwarded-For，避免伪造审计来源。
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_read_timeout 300s;
+    proxy_send_timeout 300s;
+    proxy_buffering off;
+    proxy_redirect off;
+}

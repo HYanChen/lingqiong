@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 
-import { ProjectCreator } from "@/components/project/project-creator";
+import { ProjectCreatePage } from "@/components/project/project-create-page";
 
 export const metadata: Metadata = {
-  title: "创建项目",
-  description: "创建战纪宇宙 AI 影视项目并进入画布。"
+  description: "创建灵穹 AI 影视项目，设置项目类型、素材、制作目标、视觉风格与交付产物。",
+  title: "创建项目"
 };
 
 export default function CreatePage() {
-  return <ProjectCreator />;
+  return <ProjectCreatePage />;
 }

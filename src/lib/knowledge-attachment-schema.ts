@@ -1,0 +1,42 @@
+import { readDatabase } from "@/lib/database";
+import { ensureKnowledgeSchema } from "@/lib/knowledge-schema";
+
+let knowledgeAttachmentSchemaPromise: Promise<void> | null = null;
+
+const knowledgeAttachmentSchemaStatements = [
+  `CREATE TABLE IF NOT EXISTS knowledge_record_attachments (
+    id VARCHAR(191) PRIMARY KEY,
+    space_id VARCHAR(191) NOT NULL,
+    table_id VARCHAR(191) NOT NULL,
+    record_id VARCHAR(191) NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    storage_name VARCHAR(255) NOT NULL,
+    mime_type VARCHAR(255) NOT NULL DEFAULT 'application/octet-stream',
+    file_size BIGINT UNSIGNED NOT NULL,
+    uploaded_by_id VARCHAR(191),
+    uploaded_by_account VARCHAR(255),
+    revision INT NOT NULL DEFAULT 1,
+    created_at VARCHAR(40) NOT NULL,
+    updated_at VARCHAR(40) NOT NULL,
+    UNIQUE KEY uq_knowledge_attachment_storage (storage_name),
+    INDEX idx_knowledge_attachments_record_created (record_id, created_at),
+    INDEX idx_knowledge_attachments_table_created (table_id, created_at),
+    INDEX idx_knowledge_attachments_space_created (space_id, created_at),
+    INDEX idx_knowledge_attachments_uploader (uploaded_by_id, created_at)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+];
+
+export async function ensureKnowledgeAttachmentSchema() {
+  await ensureKnowledgeSchema();
+
+  knowledgeAttachmentSchemaPromise ??= readDatabase(async (db) => {
+    for (const statement of knowledgeAttachmentSchemaStatements) {
+      await db.execute(statement);
+    }
+  }).catch((error) => {
+    knowledgeAttachmentSchemaPromise = null;
+    throw error;
+  });
+
+  return knowledgeAttachmentSchemaPromise;
+}

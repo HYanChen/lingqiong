@@ -5,7 +5,7 @@ import { CtaBand } from "@/components/cta-band";
 import { PageHero } from "@/components/page-hero";
 import { SectionHeading } from "@/components/section-heading";
 import { getIcon } from "@/lib/icon-map";
-import { getSiteData } from "@/lib/site-data";
+import { getPlatformSiteData } from "@/lib/platform-api-client";
 
 export const metadata: Metadata = {
   title: "世界观",
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 };
 
 export default async function UniversePage() {
-  const { media, universeChapters } = await getSiteData();
+  const { media, universeChapters } = await getPlatformSiteData();
 
   return (
     <>
@@ -22,6 +22,7 @@ export default async function UniversePage() {
         eyebrow="universe"
         image={media.generations}
         title="五代叙事，一条可长期更新的影像宇宙"
+        video={media.heroVideo}
       />
 
       <section className="px-5 py-24 md:px-8">

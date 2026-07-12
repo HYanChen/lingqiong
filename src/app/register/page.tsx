@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { InviteRegister } from "@/components/auth/invite-register";
-import { getSiteData } from "@/lib/site-data";
+import { getPlatformSiteData } from "@/lib/platform-api-client";
 
 export const metadata: Metadata = {
   title: "邀请码注册",
@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 export default async function RegisterPage() {
-  const { brand, media } = await getSiteData();
+  const { brand, media } = await getPlatformSiteData();
 
   return <InviteRegister brand={brand} media={media} />;
 }

@@ -44,16 +44,25 @@ export function InviteRegister({
 }) {
   const router = useRouter();
   const [inviteCode, setInviteCode] = useState("");
+  const [username, setUsername] = useState("");
   const [account, setAccount] = useState("");
   const [contact, setContact] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
   const [profile, setProfile] = useState(profiles[0]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
   const canSubmit = useMemo(
-    () => inviteCode.trim().length > 0 && !loading,
-    [inviteCode, loading]
+    () =>
+      inviteCode.trim().length > 0 &&
+      username.trim().length >= 3 &&
+      account.trim().length > 0 &&
+      password.length >= 8 &&
+      password === passwordConfirm &&
+      !loading,
+    [account, inviteCode, loading, password, passwordConfirm, username]
   );
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -66,11 +75,39 @@ export function InviteRegister({
       return;
     }
 
+    if (username.trim().length < 3) {
+      setError("请输入至少 3 位的登录账号。");
+      return;
+    }
+
+    if (!account.trim()) {
+      setError("请输入创作者名称。");
+      return;
+    }
+
+    if (password.length < 8) {
+      setError("密码至少需要 8 位。");
+      return;
+    }
+
+    if (password !== passwordConfirm) {
+      setError("两次输入的密码不一致。");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const response = await fetch("/api/register", {
-        body: JSON.stringify({ account, contact, inviteCode, profile }),
+      const response = await fetch("/_wcu-api/register", {
+        body: JSON.stringify({
+          account,
+          contact,
+          inviteCode,
+          password,
+          passwordConfirm,
+          profile,
+          username
+        }),
         headers: { "Content-Type": "application/json" },
         method: "POST"
       });
@@ -84,8 +121,8 @@ export function InviteRegister({
       }
 
       writeFrontUser(result.user);
-      setSuccess("邀请码验证通过，正在进入创作大厅。");
-      window.setTimeout(() => router.push("/workflow"), 650);
+      setSuccess("注册成功，账号密码已生效，正在进入创作者工作台。");
+      window.setTimeout(() => router.push("/projects"), 650);
     } catch {
       setError("网络暂时不可用，请稍后重试。");
     } finally {
@@ -116,13 +153,13 @@ export function InviteRegister({
               邀请码注册
             </h1>
             <p className="mt-5 max-w-lg text-base leading-8 text-stone-300">
-              进入战纪宇宙创作者工作台前，需要先完成邀请码校验。
+              邀请码用于创作者建档和后续商务协作；创作台、画布和知识库可直接使用。
             </p>
             <div className="mt-8 grid gap-3 sm:grid-cols-3">
               {[
                 ["01", "邀请码校验"],
-                ["02", "创作者建档"],
-                ["03", "进入生产线"]
+                ["02", "设置登录账号"],
+                ["03", "打开创作台"]
               ].map(([step, label]) => (
                 <div
                   className="rounded-lg border border-white/10 bg-black/30 px-4 py-3 backdrop-blur"
@@ -168,13 +205,68 @@ export function InviteRegister({
               <label className="block">
                 <span className="flex items-center gap-2 text-sm font-medium text-stone-300">
                   <UserRound aria-hidden="true" className="h-4 w-4 text-cyan-100" />
+                  登录账号
+                </span>
+                <input
+                  autoComplete="username"
+                  className="mt-2 h-12 w-full rounded-lg border border-white/10 bg-zinc-950/60 px-4 text-sm text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-cyan-200/70"
+                  maxLength={64}
+                  minLength={3}
+                  onChange={(event) => setUsername(event.target.value)}
+                  placeholder="3–64 位，用于账号密码登录"
+                  required
+                  value={username}
+                />
+              </label>
+
+              <label className="block">
+                <span className="flex items-center gap-2 text-sm font-medium text-stone-300">
+                  <UserRound aria-hidden="true" className="h-4 w-4 text-cyan-100" />
                   创作者名称
                 </span>
                 <input
                   className="mt-2 h-12 w-full rounded-lg border border-white/10 bg-zinc-950/60 px-4 text-sm text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-cyan-200/70"
+                  maxLength={255}
                   onChange={(event) => setAccount(event.target.value)}
                   placeholder="战纪创作者"
+                  required
                   value={account}
+                />
+              </label>
+
+              <label className="block">
+                <span className="flex items-center gap-2 text-sm font-medium text-stone-300">
+                  <KeyRound aria-hidden="true" className="h-4 w-4 text-cyan-100" />
+                  登录密码
+                </span>
+                <input
+                  autoComplete="new-password"
+                  className="mt-2 h-12 w-full rounded-lg border border-white/10 bg-zinc-950/60 px-4 text-sm text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-cyan-200/70"
+                  maxLength={128}
+                  minLength={8}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="8–128 位"
+                  required
+                  type="password"
+                  value={password}
+                />
+              </label>
+
+              <label className="block">
+                <span className="flex items-center gap-2 text-sm font-medium text-stone-300">
+                  <ShieldCheck aria-hidden="true" className="h-4 w-4 text-cyan-100" />
+                  确认密码
+                </span>
+                <input
+                  autoComplete="new-password"
+                  className="mt-2 h-12 w-full rounded-lg border border-white/10 bg-zinc-950/60 px-4 text-sm text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-cyan-200/70"
+                  maxLength={128}
+                  minLength={8}
+                  onChange={(event) => setPasswordConfirm(event.target.value)}
+                  placeholder="再次输入登录密码"
+                  required
+                  type="password"
+                  value={passwordConfirm}
                 />
               </label>
 
@@ -185,6 +277,7 @@ export function InviteRegister({
                 </span>
                 <input
                   className="mt-2 h-12 w-full rounded-lg border border-white/10 bg-zinc-950/60 px-4 text-sm text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-cyan-200/70"
+                  maxLength={255}
                   onChange={(event) => setContact(event.target.value)}
                   placeholder="用于合作联系"
                   value={contact}
@@ -238,9 +331,9 @@ export function InviteRegister({
               </button>
               <Link
                 className="inline-flex h-12 items-center justify-center rounded-lg border border-white/15 px-5 text-sm font-semibold text-stone-100 transition hover:bg-white/10"
-                href="/workflow"
+                href="/login?next=%2Fcreate"
               >
-                已有账号，去登录
+                已有账号，返回登录
               </Link>
             </div>
           </form>
