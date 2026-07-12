@@ -147,10 +147,10 @@ compose_at "$ROOT" up -d --no-build
 stage "6/8 等待核心服务就绪"
 ready=0
 for attempt in $(seq 1 90); do
-  if curl -fsS http://127.0.0.1:18080/platform-api/v1/health >/dev/null 2>&1 \
-    && curl -fsS http://127.0.0.1:18080/ >/dev/null 2>&1 \
-    && curl -fsS http://127.0.0.1:18080/admin/ >/dev/null 2>&1 \
-    && curl -fsS "http://127.0.0.1:18080/jeecgboot/sys/randomImage/deploy-${STAMP}" >/dev/null 2>&1; then
+  if curl -fsS http://localhost:18080/platform-api/v1/health >/dev/null 2>&1 \
+    && curl -fsS http://localhost:18080/ >/dev/null 2>&1 \
+    && curl -fsS http://localhost:18080/admin/ >/dev/null 2>&1 \
+    && curl -fsS "http://localhost:18080/jeecgboot/sys/randomImage/deploy-${STAMP}" >/dev/null 2>&1; then
     ready=1
     break
   fi
@@ -210,7 +210,7 @@ CHECK_KEY="deploy-admin-${STAMP}"
 CAPTCHA_KEYS_BEFORE="$(mktemp)"
 CAPTCHA_KEYS_AFTER="$(mktemp)"
 docker exec lingqiong-jeecg-redis redis-cli --raw KEYS '*' | sort > "$CAPTCHA_KEYS_BEFORE"
-curl -fsS "http://127.0.0.1:18080/jeecgboot/sys/randomImage/${CHECK_KEY}" >/tmp/lingqiong-jeecg-captcha.json
+curl -fsS "http://localhost:18080/jeecgboot/sys/randomImage/${CHECK_KEY}" >/tmp/lingqiong-jeecg-captcha.json
 docker exec lingqiong-jeecg-redis redis-cli --raw KEYS '*' | sort > "$CAPTCHA_KEYS_AFTER"
 REDIS_KEY="$(comm -13 "$CAPTCHA_KEYS_BEFORE" "$CAPTCHA_KEYS_AFTER" | head -1)"
 rm -f "$CAPTCHA_KEYS_BEFORE" "$CAPTCHA_KEYS_AFTER"
@@ -228,7 +228,7 @@ print(json.dumps({
 PY
 )"
   curl -fsS -H 'Content-Type: application/json' --data "$LOGIN_PAYLOAD" \
-    http://127.0.0.1:18080/jeecgboot/sys/login >/tmp/lingqiong-jeecg-login.json
+    http://localhost:18080/jeecgboot/sys/login >/tmp/lingqiong-jeecg-login.json
   JEECG_TOKEN="$(python3 - <<'PY'
 import json
 try:
@@ -247,15 +247,15 @@ PY
 )"
     curl -fsS -X PUT -H 'Content-Type: application/json' \
       -H "X-Access-Token: ${JEECG_TOKEN}" --data "$PASSWORD_PAYLOAD" \
-      http://127.0.0.1:18080/jeecgboot/sys/user/changePassword >/tmp/lingqiong-jeecg-password.json
+      http://localhost:18080/jeecgboot/sys/user/changePassword >/tmp/lingqiong-jeecg-password.json
   fi
 fi
 
 stage "8/8 线上功能验收"
-curl -fsS http://127.0.0.1:18080/ >/dev/null
-curl -fsS http://127.0.0.1:18080/login >/dev/null
-curl -fsS http://127.0.0.1:18080/admin/ >/dev/null
-curl -fsS "http://127.0.0.1:18080/jeecgboot/sys/randomImage/final-${STAMP}" >/dev/null
+curl -fsS http://localhost:18080/ >/dev/null
+curl -fsS http://localhost:18080/login >/dev/null
+curl -fsS http://localhost:18080/admin/ >/dev/null
+curl -fsS "http://localhost:18080/jeecgboot/sys/randomImage/final-${STAMP}" >/dev/null
 for public_url in \
   https://pla.wiki/ \
   https://pla.wiki/login \

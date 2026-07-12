@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 ROOT="${DEPLOY_ROOT:-/www/wwwroot/pla.wiki}"
-BASE="${JEECG_SMOKE_BASE:-http://127.0.0.1:18080/jeecgboot}"
+BASE="${JEECG_SMOKE_BASE:-http://localhost:18080/jeecgboot}"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
