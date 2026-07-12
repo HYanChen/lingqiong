@@ -19,7 +19,8 @@ management:
 spring:
   flyway:
     # 是否启用flyway
-    enabled: true
+    # MySQL 8.4 与上游内置 Flyway 7 不兼容；生产编排由 jeecg-db-init 幂等执行迁移。
+    enabled: false
     # 是否关闭要清除已有库下的表功能,生产环境必须为true,否则会删库，非常重要！！！
     clean-disabled: true
   servlet:
@@ -112,6 +113,8 @@ spring:
       web-stat-filter:
         enabled: true
     dynamic:
+      primary: master
+      strict: true
       druid:
         # 连接池的配置信息
         initial-size: 5

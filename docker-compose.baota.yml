@@ -50,6 +50,7 @@ services:
       MYSQL_PASSWORD: "${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}"
     volumes:
       - ./vendor/jeecg-boot/jeecg-boot/db/jeecgboot-mysql-5.7.sql:/bootstrap/jeecg.sql:ro
+      - ./vendor/jeecg-boot/jeecg-boot/jeecg-module-system/jeecg-system-start/src/main/resources/flyway/sql/mysql/V3.9.3_9__lingqiong_operations.sql:/bootstrap/lingqiong.sql:ro
     command:
       - sh
       - -c
@@ -58,6 +59,7 @@ services:
         if ! mysql -hmysql -uroot -N -e "SELECT 1 FROM information_schema.tables WHERE table_schema='jeecg_boot' AND table_name='sys_user'" | grep -q 1; then
           sed 's/`jeecg-boot`/`jeecg_boot`/g' /bootstrap/jeecg.sql | mysql -hmysql -uroot
         fi
+        mysql -hmysql -uroot jeecg_boot < /bootstrap/lingqiong.sql
 
   jeecg-redis:
     image: redis:7.4-alpine

@@ -1,6 +1,5 @@
 package org.jeecg.modules.lingqiong.controller;
 
-import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -21,7 +20,6 @@ import java.util.Map;
 @Tag(name = "灵穹运营后台")
 @RestController
 @RequestMapping("/lingqiong")
-@DS("lingqiong")
 public class LingqiongOperationsController {
     private final LingqiongOperationsService operationsService;
     private final LingqiongProjectMapper projectMapper;
