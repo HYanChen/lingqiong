@@ -3,8 +3,10 @@ FROM node:22-alpine AS builder
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 WORKDIR /source
 COPY vendor/jeecg-boot/jeecgboot-vue3/package.json vendor/jeecg-boot/jeecgboot-vue3/pnpm-lock.yaml ./
-RUN --mount=type=cache,id=lingqiong-pnpm-cache,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile
+# Some Baota Docker storage drivers reject writes to BuildKit cache mounts after
+# package postinstall hooks. A container-local store is slower on the first
+# build but deterministic across the supported server filesystems.
+RUN pnpm install --frozen-lockfile --store-dir /tmp/pnpm-store
 COPY vendor/jeecg-boot/jeecgboot-vue3/ ./
 RUN pnpm build
 
