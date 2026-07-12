@@ -6,7 +6,7 @@ COPY vendor/jeecg-boot/jeecgboot-vue3/package.json vendor/jeecg-boot/jeecgboot-v
 # Some Baota Docker storage drivers reject writes to BuildKit cache mounts after
 # package postinstall hooks. A container-local store is slower on the first
 # build but deterministic across the supported server filesystems.
-RUN pnpm install --frozen-lockfile --store-dir /tmp/pnpm-store
+RUN pnpm install --frozen-lockfile --ignore-scripts --store-dir /tmp/pnpm-store
 COPY vendor/jeecg-boot/jeecgboot-vue3/ ./
 RUN pnpm build
 
