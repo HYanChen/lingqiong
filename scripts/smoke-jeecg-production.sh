@@ -46,7 +46,7 @@ import json
 import sys
 with open(sys.argv[1], encoding='utf-8') as handle:
     data = json.load(handle)
-print(data.get('result', {}).get('token', ''))
+print((data.get('result') or {}).get('token', ''))
 PY
 }
 
