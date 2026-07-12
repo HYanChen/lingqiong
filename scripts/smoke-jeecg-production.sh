@@ -11,44 +11,61 @@ set -a
 source "$ROOT/.env.baota"
 set +a
 
-CHECK_KEY="production-smoke-$(date +%s)-$RANDOM"
-curl -fsS "$BASE/sys/randomImage/$CHECK_KEY" > "$WORK/captcha-response.json"
+login_with_password() {
+  local password="$1"
+  local attempt="$2"
+  local check_key="production-smoke-$(date +%s)-$RANDOM-$attempt"
+  local before="$WORK/keys-before-$attempt"
+  local after="$WORK/keys-after-$attempt"
+  local redis_key
+  local captcha
+  local payload
+  local response="$WORK/login-$attempt.json"
 
-REDIS_KEY=""
-best_ttl=-1
-for candidate in $(docker exec lingqiong-jeecg-redis redis-cli --raw KEYS '*' | awk 'length($0) == 36'); do
-  candidate_ttl="$(docker exec lingqiong-jeecg-redis redis-cli --raw TTL "$candidate" | tr -d '\r')"
-  if [[ "$candidate_ttl" =~ ^[0-9]+$ ]] && (( candidate_ttl > best_ttl )); then
-    best_ttl="$candidate_ttl"
-    REDIS_KEY="$candidate"
-  fi
-done
-[[ -n "$REDIS_KEY" ]] || { echo "未找到验证码缓存"; exit 1; }
-
-CAPTCHA="$(docker exec lingqiong-jeecg-redis redis-cli --raw GET "$REDIS_KEY" | tr -d '"\r\n')"
-LOGIN_PAYLOAD="$(CAPTCHA="$CAPTCHA" CHECK_KEY="$CHECK_KEY" python3 - <<'PY'
+  docker exec lingqiong-jeecg-redis redis-cli --raw KEYS '*' | sort > "$before"
+  curl -fsS "$BASE/sys/randomImage/$check_key" > "$WORK/captcha-$attempt.json"
+  docker exec lingqiong-jeecg-redis redis-cli --raw KEYS '*' | sort > "$after"
+  redis_key="$(comm -13 "$before" "$after" | head -1)"
+  [[ -n "$redis_key" ]] || return 0
+  captcha="$(docker exec lingqiong-jeecg-redis redis-cli --raw GET "$redis_key" | tr -d '"\r\n')"
+  payload="$(CAPTCHA="$captcha" CHECK_KEY="$check_key" LOGIN_PASSWORD="$password" python3 - <<'PY'
 import json
 import os
 print(json.dumps({
     'username': 'admin',
-    'password': os.environ['ADMIN_PASSWORD'],
+    'password': os.environ['LOGIN_PASSWORD'],
     'captcha': os.environ['CAPTCHA'],
     'checkKey': os.environ['CHECK_KEY'],
 }))
 PY
 )"
-curl -fsS -H 'Content-Type: application/json' --data "$LOGIN_PAYLOAD" \
-  "$BASE/sys/login" > "$WORK/login.json"
-
-TOKEN="$(python3 - "$WORK/login.json" <<'PY'
+  curl -fsS -H 'Content-Type: application/json' --data "$payload" \
+    "$BASE/sys/login" > "$response"
+  python3 - "$response" <<'PY'
 import json
 import sys
 with open(sys.argv[1], encoding='utf-8') as handle:
     data = json.load(handle)
 print(data.get('result', {}).get('token', ''))
 PY
+}
+
+TOKEN="$(login_with_password "$ADMIN_PASSWORD" configured)"
+if [[ -z "$TOKEN" ]]; then
+  BOOTSTRAP_TOKEN="$(login_with_password 123456 bootstrap)"
+  [[ -n "$BOOTSTRAP_TOKEN" ]] || { echo "Jeecg 管理员登录失败"; exit 1; }
+  PASSWORD_PAYLOAD="$(TARGET_PASSWORD="$ADMIN_PASSWORD" python3 - <<'PY'
+import json
+import os
+print(json.dumps({'username': 'admin', 'password': os.environ['TARGET_PASSWORD']}))
+PY
 )"
-[[ -n "$TOKEN" ]] || { echo "Jeecg 管理员登录失败"; exit 1; }
+  curl -fsS -X PUT -H 'Content-Type: application/json' \
+    -H "X-Access-Token: $BOOTSTRAP_TOKEN" --data "$PASSWORD_PAYLOAD" \
+    "$BASE/sys/user/changePassword" > "$WORK/password-change.json"
+  TOKEN="$(login_with_password "$ADMIN_PASSWORD" verified)"
+fi
+[[ -n "$TOKEN" ]] || { echo "Jeecg 管理员密码加固验证失败"; exit 1; }
 
 auth=(-H "X-Access-Token: $TOKEN")
 curl -fsS "${auth[@]}" "$BASE/lingqiong/dashboard/summary" > "$WORK/summary.json"

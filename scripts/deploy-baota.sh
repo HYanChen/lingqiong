@@ -207,16 +207,13 @@ run().catch((error) => {
 NODE
 
 CHECK_KEY="deploy-admin-${STAMP}"
+CAPTCHA_KEYS_BEFORE="$(mktemp)"
+CAPTCHA_KEYS_AFTER="$(mktemp)"
+docker exec lingqiong-jeecg-redis redis-cli --raw KEYS '*' | sort > "$CAPTCHA_KEYS_BEFORE"
 curl -fsS "http://127.0.0.1:18080/jeecgboot/sys/randomImage/${CHECK_KEY}" >/tmp/lingqiong-jeecg-captcha.json
-REDIS_KEY="$(docker exec lingqiong-jeecg-redis redis-cli --raw KEYS '*' | awk 'length($0) == 36 {print; exit}')"
-best_ttl=-1
-for candidate in $(docker exec lingqiong-jeecg-redis redis-cli --raw KEYS '*' | awk 'length($0) == 36'); do
-  candidate_ttl="$(docker exec lingqiong-jeecg-redis redis-cli --raw TTL "$candidate" | tr -d '\r')"
-  if [[ "$candidate_ttl" =~ ^[0-9]+$ ]] && (( candidate_ttl > best_ttl )); then
-    best_ttl="$candidate_ttl"
-    REDIS_KEY="$candidate"
-  fi
-done
+docker exec lingqiong-jeecg-redis redis-cli --raw KEYS '*' | sort > "$CAPTCHA_KEYS_AFTER"
+REDIS_KEY="$(comm -13 "$CAPTCHA_KEYS_BEFORE" "$CAPTCHA_KEYS_AFTER" | head -1)"
+rm -f "$CAPTCHA_KEYS_BEFORE" "$CAPTCHA_KEYS_AFTER"
 if [[ -n "$REDIS_KEY" && -n "${ADMIN_PASSWORD:-}" ]]; then
   CAPTCHA="$(docker exec lingqiong-jeecg-redis redis-cli --raw GET "$REDIS_KEY" | tr -d '"\r\n')"
   LOGIN_PAYLOAD="$(CAPTCHA="$CAPTCHA" CHECK_KEY="$CHECK_KEY" python3 - <<'PY'
