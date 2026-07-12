@@ -116,7 +116,14 @@ stage "2/8 校验生产编排"
 compose_at "$RELEASE" config >/dev/null
 
 stage "3/8 预构建官网与 JeecgBoot"
-DOCKER_BUILDKIT=1 compose_at "$RELEASE" build web jeecg-system jeecg-admin
+build_services=(web jeecg-system)
+if [[ "${SKIP_JEECG_ADMIN_BUILD:-0}" == "1" ]]; then
+  docker image inspect lingqiong_jeecg_admin:latest >/dev/null
+  echo "使用已导入并验证的 Jeecg 管理端镜像。"
+else
+  build_services+=(jeecg-admin)
+fi
+DOCKER_BUILDKIT=1 compose_at "$RELEASE" build "${build_services[@]}"
 
 stage "4/8 备份代码、数据库和当前镜像"
 mkdir -p "$PREVIOUS"
