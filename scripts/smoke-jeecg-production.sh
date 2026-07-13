@@ -3,12 +3,17 @@ set -Eeuo pipefail
 
 ROOT="${DEPLOY_ROOT:-/www/wwwroot/pla.wiki}"
 BASE="${JEECG_SMOKE_BASE:-http://localhost:18080/jeecgboot}"
-WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+ENV_FILE="${JEECG_SMOKE_ENV_FILE:-$ROOT/.env.baota}"
+REDIS_CONTAINER="${JEECG_SMOKE_REDIS_CONTAINER:-lingqiong-jeecg-redis}"
+WORK="${JEECG_SMOKE_WORK_DIR:-$(mktemp -d)}"
+mkdir -p "$WORK"
+if [[ "${JEECG_SMOKE_KEEP_WORK:-0}" != "1" ]]; then
+  trap 'rm -rf "$WORK"' EXIT
+fi
 
 set -a
 # shellcheck disable=SC1091
-source "$ROOT/.env.baota"
+source "$ENV_FILE"
 set +a
 
 login_with_password() {
@@ -22,12 +27,12 @@ login_with_password() {
   local payload
   local response="$WORK/login-$attempt.json"
 
-  docker exec lingqiong-jeecg-redis redis-cli --raw KEYS '*' | sort > "$before"
+  docker exec "$REDIS_CONTAINER" redis-cli --raw KEYS '*' | sort > "$before"
   curl -fsS "$BASE/sys/randomImage/$check_key" > "$WORK/captcha-$attempt.json"
-  docker exec lingqiong-jeecg-redis redis-cli --raw KEYS '*' | sort > "$after"
+  docker exec "$REDIS_CONTAINER" redis-cli --raw KEYS '*' | sort > "$after"
   redis_key="$(comm -13 "$before" "$after" | head -1)"
   [[ -n "$redis_key" ]] || return 0
-  captcha="$(docker exec lingqiong-jeecg-redis redis-cli --raw GET "$redis_key" | tr -d '"\r\n')"
+  captcha="$(docker exec "$REDIS_CONTAINER" redis-cli --raw GET "$redis_key" | tr -d '"\r\n')"
   payload="$(CAPTCHA="$captcha" CHECK_KEY="$check_key" LOGIN_PASSWORD="$password" python3 - <<'PY'
 import json
 import os
@@ -75,8 +80,24 @@ curl -fsS "${auth[@]}" "$BASE/lingqiong/bridge/admin/content" > "$WORK/content.j
 curl -fsS "${auth[@]}" "$BASE/lingqiong/bridge/admin/login-settings" > "$WORK/login-settings.json"
 curl -fsS "${auth[@]}" "$BASE/lingqiong/bridge/not-supported" > "$WORK/not-supported.json"
 
+PROJECT_ID="$(python3 - "$WORK/projects.json" <<'PY'
+import json
+import sys
+with open(sys.argv[1], encoding='utf-8') as handle:
+    records = (json.load(handle).get('result') or {}).get('records') or []
+print(records[0].get('id', '') if records else '')
+PY
+)"
+if [[ -n "$PROJECT_ID" ]]; then
+  curl -fsS "${auth[@]}" "$BASE/lingqiong/projects/$PROJECT_ID/flow" > "$WORK/project-flow.json"
+  curl -fsS "${auth[@]}" "$BASE/lingqiong/data/episodes/list?pageNo=1&pageSize=100&projectId=$PROJECT_ID" > "$WORK/project-episodes.json"
+fi
+
+PROJECT_ID="$PROJECT_ID" \
+JEECG_SMOKE_REQUIRE_OFFICIAL_WECHAT="${JEECG_SMOKE_REQUIRE_OFFICIAL_WECHAT:-1}" \
 python3 - "$WORK" <<'PY'
 import json
+import os
 import pathlib
 import sys
 
@@ -98,8 +119,26 @@ assert projects.get('success') is True and isinstance(projects.get('result', {})
 assert content.get('success') is True and isinstance(content.get('result', {}).get('brand'), dict)
 assert login_settings.get('success') is True
 wechat = login_settings.get('result', {}).get('wechat', {})
-assert wechat.get('mode') == 'official' and wechat.get('appSecretConfigured') is True
+if os.environ.get('JEECG_SMOKE_REQUIRE_OFFICIAL_WECHAT', '1') == '1':
+    assert wechat.get('mode') == 'official' and wechat.get('appSecretConfigured') is True
+else:
+    assert wechat.get('mode') in ('official', 'local-scan')
 assert not_supported.get('success') is False and not_supported.get('code') == 404
+
+project_id = os.environ.get('PROJECT_ID', '')
+if project_id:
+    project_flow = load('project-flow.json')
+    project_episodes = load('project-episodes.json')
+    assert project_flow.get('success') is True
+    assert project_flow.get('result', {}).get('project', {}).get('id') == project_id
+    counts = project_flow.get('result', {}).get('counts', {})
+    assert all(isinstance(counts.get(key), int) for key in (
+        'episodes', 'elements', 'storyboards', 'voiceovers',
+        'compositions', 'uploads', 'generationJobs'
+    ))
+    assert project_episodes.get('success') is True
+    episode_records = project_episodes.get('result', {}).get('records', [])
+    assert all(record.get('project_id') == project_id for record in episode_records)
 PY
 
 echo "LIVE_JEECG_SMOKE_OK"

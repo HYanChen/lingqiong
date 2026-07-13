@@ -25,7 +25,6 @@ const publicPages = [
 ];
 
 const protectedPages = [
-  "/admin",
   "/account",
   "/account/billing",
   "/create",
@@ -35,7 +34,7 @@ const protectedPages = [
   "/api"
 ];
 
-const authenticatedPages = ["/admin", "/account", "/account/billing"];
+const authenticatedPages = ["/account", "/account/billing"];
 
 const compatibilityRedirects = [
   ["/canvas", "/projects"]
@@ -218,13 +217,15 @@ const baseUrl = normalizeBaseUrl(process.env.BASE_URL || DEFAULT_BASE_URL);
 const requestTimeoutMs = timeoutValue();
 const explicitAdminUsername = process.env.SMOKE_ADMIN_USERNAME?.trim() || "";
 const explicitAdminPassword = process.env.SMOKE_ADMIN_PASSWORD || "";
+const legacyAdminSmoke = process.env.SMOKE_LEGACY_ADMIN === "1";
 const hasExplicitUsername = explicitAdminUsername.length > 0;
 const hasExplicitPassword = explicitAdminPassword.length > 0;
-const credentialConfigurationError =
+const credentialConfigurationError = legacyAdminSmoke &&
   hasExplicitUsername !== hasExplicitPassword
     ? "SMOKE_ADMIN_USERNAME 与 SMOKE_ADMIN_PASSWORD 必须同时提供"
     : "";
-const useTemporaryAdmin = !hasExplicitUsername && !hasExplicitPassword;
+const useTemporaryAdmin =
+  legacyAdminSmoke && !hasExplicitUsername && !hasExplicitPassword;
 const temporarySuffix = `${Date.now().toString(36)}.${randomBytes(4).toString("hex")}`;
 const temporaryAdminId = randomUUID();
 const temporaryAdminUsername = `http.audit.${temporarySuffix}`;
@@ -527,7 +528,11 @@ function printSummary(startedAt) {
 
   const report = {
     baseUrl: baseUrl.origin + (baseUrl.pathname === "/" ? "" : baseUrl.pathname),
-    credentialMode: useTemporaryAdmin ? "temporary-owner" : "external",
+    credentialMode: legacyAdminSmoke
+      ? useTemporaryAdmin
+        ? "temporary-owner"
+        : "external"
+      : "jeecg-service",
     durationMs: Date.now() - startedAt,
     finishedAt: new Date().toISOString(),
     groups,
@@ -562,6 +567,12 @@ async function main() {
     });
   }
 
+  await check("admin-entry", "Jeecg 后台登录入口 /admin/", async () => {
+    const response = await request("/admin/", { accept: "text/html" });
+    requireStatus(response, 200, "Jeecg 后台登录入口");
+    return { architecture: "jeecg", httpStatus: response.status };
+  });
+
   for (const path of protectedPages) {
     await check("access-control", `未登录保护 ${path}`, async () => {
       const response = await request(path, { accept: "text/html" });
@@ -587,6 +598,7 @@ async function main() {
     });
   }
 
+  if (legacyAdminSmoke) {
   await check("access-control", "未登录不可读取后台内容", async () => {
     const response = await request("/_wcu-api/admin/content");
     requireStatus(response, 401, "后台内容权限");
@@ -756,6 +768,7 @@ async function main() {
 
     return { httpStatus: response.status, restored: true };
   });
+  }
 
   await check("project-types", "公开项目类型读取", async () => {
     const response = await request("/_wcu-api/project-types");
@@ -765,7 +778,8 @@ async function main() {
     return { count: body.types.length, httpStatus: response.status };
   });
 
-  await check("project-types", "后台项目类型读取", async () => {
+  if (legacyAdminSmoke) {
+  await check("project-types", "旧后台项目类型读取", async () => {
     requireCondition(loggedIn, "正确登录前置检查未通过");
     const response = await request("/_wcu-api/admin/project-types", {
       authenticated: true
@@ -775,6 +789,7 @@ async function main() {
     requireCondition(body?.ok === true && Array.isArray(body?.types), "后台项目类型结构不正确");
     return { count: body.types.length, httpStatus: response.status };
   });
+  }
 
   await check("platform-api", "独立 API 健康检查", async () => {
     const response = await request("/platform-api/v1/health");

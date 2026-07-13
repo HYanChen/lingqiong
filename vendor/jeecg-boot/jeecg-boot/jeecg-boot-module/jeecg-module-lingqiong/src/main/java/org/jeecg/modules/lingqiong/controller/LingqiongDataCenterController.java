@@ -42,10 +42,11 @@ public class LingqiongDataCenterController {
         @PathVariable String module,
         @RequestParam(defaultValue = "1") Integer pageNo,
         @RequestParam(defaultValue = "20") Integer pageSize,
-        @RequestParam(required = false) String keyword
+        @RequestParam(required = false) String keyword,
+        @RequestParam(required = false) String projectId
     ) {
         try {
-            return Result.OK(service.list(module, pageNo, pageSize, keyword));
+            return Result.OK(service.list(module, pageNo, pageSize, keyword, projectId));
         } catch (IllegalArgumentException exception) {
             return Result.error(exception.getMessage());
         }

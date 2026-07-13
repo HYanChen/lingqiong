@@ -14,6 +14,7 @@
     "audit:http": "node scripts/http-smoke-audit.mjs",
     "audit:knowledge": "node scripts/knowledge-workspace-smoke.mjs",
     "audit:knowledge:collaboration": "node scripts/knowledge-collaboration-smoke.mjs",
+    "audit:linkage": "node scripts/frontend-admin-linkage-audit.mjs",
     "audit:oidc": "node scripts/new-api-user-isolation-smoke.mjs",
     "audit:rbac": "node scripts/platform-rbac-smoke.mjs",
     "audit:model-security": "node scripts/model-security-smoke.mjs",

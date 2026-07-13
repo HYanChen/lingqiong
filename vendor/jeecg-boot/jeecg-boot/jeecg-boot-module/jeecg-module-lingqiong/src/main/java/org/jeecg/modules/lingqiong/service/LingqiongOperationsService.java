@@ -5,6 +5,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -29,6 +30,31 @@ public class LingqiongOperationsService {
         return result;
     }
 
+    public Map<String, Object> projectFlow(String projectId) {
+        List<Map<String, Object>> projects = jdbcTemplate.queryForList(
+            "SELECT id, name, owner_account, type, aspect_ratio, updated_at " +
+                "FROM projects WHERE id = ? LIMIT 1",
+            projectId
+        );
+        if (projects.isEmpty()) {
+            throw new IllegalArgumentException("项目不存在");
+        }
+
+        Map<String, Long> counts = new LinkedHashMap<>();
+        counts.put("episodes", countByProject("episodes", projectId));
+        counts.put("elements", countByProject("elements", projectId));
+        counts.put("storyboards", countByProject("storyboards", projectId));
+        counts.put("voiceovers", countByProject("voiceovers", projectId));
+        counts.put("compositions", countByProject("compositions", projectId));
+        counts.put("uploads", countByProject("project_uploads", projectId));
+        counts.put("generationJobs", countByProject("generation_jobs", projectId));
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("project", projects.get(0));
+        result.put("counts", counts);
+        return result;
+    }
+
     private long count(String table) {
         Long value = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM " + table, Long.class);
         return value == null ? 0L : value;
@@ -38,6 +64,15 @@ public class LingqiongOperationsService {
         Long value = jdbcTemplate.queryForObject(
             "SELECT COUNT(*) FROM " + table + " WHERE " + where,
             Long.class
+        );
+        return value == null ? 0L : value;
+    }
+
+    private long countByProject(String table, String projectId) {
+        Long value = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM " + table + " WHERE project_id = ?",
+            Long.class,
+            projectId
         );
         return value == null ? 0L : value;
     }

@@ -2,6 +2,7 @@ import { defHttp } from '/@/utils/http/axios';
 
 export const getSummary = () => defHttp.get({ url: '/lingqiong/dashboard/summary' });
 export const getProjects = (params) => defHttp.get({ url: '/lingqiong/projects/list', params });
+export const getProjectFlow = (id: string) => defHttp.get({ url: `/lingqiong/projects/${id}/flow` });
 export const updateProject = (params) => defHttp.put({ url: '/lingqiong/projects/edit', params });
 export const getUsers = (params) => defHttp.get({ url: '/lingqiong/users/list', params });
 export const updateUser = (params) => defHttp.put({ url: '/lingqiong/users/edit', params });

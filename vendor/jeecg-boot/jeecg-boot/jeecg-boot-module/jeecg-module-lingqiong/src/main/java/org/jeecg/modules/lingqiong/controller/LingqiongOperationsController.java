@@ -77,6 +77,16 @@ public class LingqiongOperationsController {
         return Result.OK("项目已更新");
     }
 
+    @GetMapping("/projects/{id}/flow")
+    @RequiresPermissions("lingqiong:projects:list")
+    public Result<?> projectFlow(@PathVariable String id) {
+        try {
+            return Result.OK(operationsService.projectFlow(id));
+        } catch (IllegalArgumentException exception) {
+            return Result.error(exception.getMessage());
+        }
+    }
+
     @GetMapping("/users/list")
     @RequiresPermissions("lingqiong:users:list")
     public Result<Page<LingqiongFrontUser>> users(

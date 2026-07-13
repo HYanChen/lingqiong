@@ -37,6 +37,11 @@ public class LingqiongDataCenterService {
         "access_token", "refresh_token", "code_challenge", "token"
     );
 
+    private static final Set<String> PROJECT_SCOPED_MODULES = Set.of(
+        "episodes", "elements", "storyboards", "voiceovers", "compositions",
+        "uploads", "generationJobs"
+    );
+
     private static Set<String> columns(String values) {
         if (values == null || values.isBlank()) {
             return Set.of();
@@ -139,21 +144,40 @@ public class LingqiongDataCenterService {
             .orElseThrow(() -> new IllegalArgumentException("不支持的数据模块"));
     }
 
-    public Map<String, Object> list(String key, int pageNo, int pageSize, String keyword) {
+    public Map<String, Object> list(
+        String key,
+        int pageNo,
+        int pageSize,
+        String keyword,
+        String projectId
+    ) {
         ModuleDefinition module = requireModule(key);
         int safePage = Math.max(1, pageNo);
         int safeSize = Math.max(1, Math.min(100, pageSize));
         int offset = (safePage - 1) * safeSize;
         List<Object> args = new ArrayList<>();
-        String where = "";
+        List<String> filters = new ArrayList<>();
 
         if (keyword != null && !keyword.isBlank() && !module.searchColumns().isEmpty()) {
             String expression = module.searchColumns().stream()
                 .map(column -> "CAST(`" + column + "` AS CHAR)")
                 .collect(Collectors.joining(","));
-            where = " WHERE CONCAT_WS(' '," + expression + ") LIKE ?";
+            filters.add("CONCAT_WS(' '," + expression + ") LIKE ?");
             args.add("%" + keyword.trim() + "%");
         }
+
+        if (
+            projectId != null &&
+            !projectId.isBlank() &&
+            PROJECT_SCOPED_MODULES.contains(module.key())
+        ) {
+            filters.add("`project_id` = ?");
+            args.add(projectId.trim());
+        }
+
+        String where = filters.isEmpty()
+            ? ""
+            : " WHERE " + String.join(" AND ", filters);
 
         Long total = jdbcTemplate.queryForObject(
             "SELECT COUNT(*) FROM `" + module.table() + "`" + where,
@@ -177,6 +201,7 @@ public class LingqiongDataCenterService {
         result.put("total", total == null ? 0L : total);
         result.put("pageNo", safePage);
         result.put("pageSize", safeSize);
+        result.put("projectId", projectId == null ? "" : projectId.trim());
         return result;
     }
 
