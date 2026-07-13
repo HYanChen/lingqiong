@@ -4,6 +4,11 @@ import { getLoginSettings } from "@/lib/login-settings";
 import { createWechatLoginTicket } from "@/lib/wechat-login";
 
 function publicOrigin(request: Request) {
+  const configuredOrigin = process.env.WCU_PUBLIC_BASE_URL?.trim();
+  if (configuredOrigin) {
+    return configuredOrigin.replace(/\/$/, "");
+  }
+
   const headers = request.headers;
   const proto = headers.get("x-forwarded-proto") || "https";
   const host = headers.get("x-forwarded-host") || headers.get("host");
