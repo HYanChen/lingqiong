@@ -15,3 +15,6 @@ vendor/*
 !vendor/jeecg-boot/
 !vendor/jeecg-boot/**
 vendor/jeecg-boot/.git
+vendor/jeecg-boot/**/node_modules
+vendor/jeecg-boot/**/dist
+.playwright-mcp
