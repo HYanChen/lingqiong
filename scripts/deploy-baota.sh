@@ -78,6 +78,10 @@ done
 
 [[ -d "$ROOT" ]] || { echo "生产目录不存在：$ROOT"; exit 1; }
 [[ -f "$ROOT/.env.baota" ]] || { echo "缺少生产环境配置：$ROOT/.env.baota"; exit 1; }
+set -a
+# shellcheck disable=SC1091
+source "$ROOT/.env.baota"
+set +a
 [[ -n "${WECHAT_APP_ID:-}" ]] || { echo "缺少 WECHAT_APP_ID"; exit 1; }
 [[ -n "${WECHAT_APP_SECRET:-}" ]] || { echo "缺少 WECHAT_APP_SECRET"; exit 1; }
 
