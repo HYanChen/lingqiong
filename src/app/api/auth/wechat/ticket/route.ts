@@ -3,6 +3,14 @@ import { NextResponse } from "next/server";
 import { getLoginSettings } from "@/lib/login-settings";
 import { createWechatLoginTicket } from "@/lib/wechat-login";
 
+function publicOrigin(request: Request) {
+  const headers = request.headers;
+  const proto = headers.get("x-forwarded-proto") || "https";
+  const host = headers.get("x-forwarded-host") || headers.get("host");
+
+  return host ? `${proto}://${host.replace(/:3000$/, "")}` : new URL(request.url).origin;
+}
+
 export async function POST(request: Request) {
   const settings = await getLoginSettings();
 
@@ -18,11 +26,11 @@ export async function POST(request: Request) {
   }
 
   const ticket = await createWechatLoginTicket();
-  const url = new URL(request.url);
+  const origin = publicOrigin(request);
   const scanUrl =
     settings.wechat.mode === "official"
-      ? `${url.origin}/_wcu-api/auth/wechat/start?ticket=${encodeURIComponent(ticket.code)}`
-      : `${url.origin}/wechat-login?ticket=${encodeURIComponent(ticket.code)}`;
+      ? `${origin}/_wcu-api/auth/wechat/start?ticket=${encodeURIComponent(ticket.code)}`
+      : `${origin}/wechat-login?ticket=${encodeURIComponent(ticket.code)}`;
 
   return NextResponse.json({
     ok: true,
