@@ -56,4 +56,13 @@ END,
 sort_no = CASE WHEN id = 'lq000000000000000000000000000001' THEN 0.1 ELSE sort_no END
 WHERE id LIKE 'lq0000000000000000000000000000%';
 
-UPDATE sys_user SET home_path = '/lingqiong/operations' WHERE username = 'admin';
+-- home_path 是 SysUser 的非持久化字段。Jeecg 的登录首页由 sys_role_index 管理。
+UPDATE sys_role_index
+SET url = '/lingqiong/operations',
+    component = 'lingqiong/operations/index',
+    is_route = 1,
+    status = '1',
+    relation_type = 'DEFAULT',
+    update_by = 'admin',
+    update_time = NOW()
+WHERE role_code = 'DEF_INDEX_ALL';
