@@ -133,11 +133,13 @@ export async function createWechatOfficialAuthorization(requestUrl: URL) {
 
   const nonce = randomUUID().replaceAll("-", "");
   const next = safeFrontRedirectPath(requestUrl.searchParams.get("next"));
-  const authorizationUrl = new URL("https://open.weixin.qq.com/connect/qrconnect");
+  const authorizationUrl = new URL(
+    "https://open.weixin.qq.com/connect/oauth2/authorize"
+  );
   authorizationUrl.searchParams.set("appid", settings.wechat.appId.trim());
   authorizationUrl.searchParams.set("redirect_uri", callbackUri(requestUrl));
   authorizationUrl.searchParams.set("response_type", "code");
-  authorizationUrl.searchParams.set("scope", "snsapi_login");
+  authorizationUrl.searchParams.set("scope", "snsapi_userinfo");
   authorizationUrl.searchParams.set("state", nonce);
   authorizationUrl.hash = "wechat_redirect";
 
