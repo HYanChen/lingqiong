@@ -39,3 +39,21 @@ CREATE TABLE IF NOT EXISTS model_billing_audits (
   INDEX idx_model_billing_project_created (project_id, created_at),
   INDEX idx_model_billing_status_created (status, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS wechat_pay_orders (
+  trade_no VARCHAR(32) PRIMARY KEY,
+  principal_id VARCHAR(191) NOT NULL,
+  new_api_user_id BIGINT NOT NULL,
+  quota_amount BIGINT NOT NULL,
+  amount_fen BIGINT NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'pending',
+  code_url LONGTEXT,
+  transaction_id VARCHAR(64),
+  notify_id VARCHAR(64),
+  paid_at VARCHAR(40),
+  created_at VARCHAR(40) NOT NULL,
+  updated_at VARCHAR(40) NOT NULL,
+  INDEX idx_wechat_pay_principal_created (principal_id, created_at),
+  INDEX idx_wechat_pay_user_created (new_api_user_id, created_at),
+  INDEX idx_wechat_pay_status_updated (status, updated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -20,6 +20,7 @@ import {
   X
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 
 type BillingAccount = Record<string, unknown>;
 type BillingSettings = Record<string, unknown>;
@@ -57,6 +58,8 @@ type ActionResponse = {
   payableAmount?: number | string;
   paymentAmount?: number | string;
   paymentUrl?: string;
+  codeUrl?: string;
+  tradeNo?: string;
   quote?: Record<string, unknown>;
 };
 
@@ -175,6 +178,7 @@ export function BillingCenter() {
   const [methodId, setMethodId] = useState("");
   const [quote, setQuote] = useState<Quote | null>(null);
   const [redeemCode, setRedeemCode] = useState("");
+  const [qrPayment, setQrPayment] = useState<{ codeUrl: string; tradeNo: string } | null>(null);
 
   const loadBilling = useCallback(async () => {
     setLoading(true);
@@ -203,6 +207,33 @@ export function BillingCenter() {
       cancelled = true;
     };
   }, [loadBilling]);
+
+  useEffect(() => {
+    if (!qrPayment) return;
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const result = await billingRequest<ActionResponse>({
+          body: JSON.stringify({ action: "status", tradeNo: qrPayment.tradeNo }),
+          method: "POST"
+        });
+        const status = record(result.data);
+        if (!cancelled && status.paid === true) {
+          setQrPayment(null);
+          setMessage("微信支付成功，资源额度已入账。");
+          await loadBilling();
+        }
+      } catch {
+        // Temporary polling failures should not interrupt an active payment.
+      }
+    };
+    void check();
+    const timer = window.setInterval(() => void check(), 2500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [loadBilling, qrPayment]);
 
   const methods = useMemo(() => paymentMethods(data?.settings ?? {}), [data]);
   const presets = useMemo(() => presetAmounts(data?.settings ?? {}), [data]);
@@ -281,6 +312,14 @@ export function BillingCenter() {
         body: JSON.stringify({ action: "pay", amount, paymentMethod: methodId }),
         method: "POST"
       });
+      const paymentData = record(result.data);
+      const codeUrl = String(result.codeUrl ?? paymentData.codeUrl ?? "");
+      const tradeNo = String(result.tradeNo ?? paymentData.tradeNo ?? "");
+      if (codeUrl && tradeNo) {
+        setQrPayment({ codeUrl, tradeNo });
+        setMessage("订单已创建，请使用微信扫码支付。");
+        return;
+      }
       const paymentUrl = String(result.paymentUrl ?? result.data?.paymentUrl ?? "");
       if (!paymentUrl) throw new Error("支付通道未返回收银台地址。");
       const target = new URL(paymentUrl, window.location.origin);
@@ -359,6 +398,7 @@ export function BillingCenter() {
       <section className="rounded-2xl border border-white/10 bg-[#0b1119]/92 shadow-[0_18px_60px_rgba(0,0,0,0.16)]"><header className="flex flex-wrap items-center justify-between gap-4 border-b border-white/8 px-5 py-5 sm:px-6"><div><div className="flex items-center gap-2"><History className="h-5 w-5 text-cyan-100" /><h2 className="text-lg font-semibold text-white">充值订单</h2></div><p className="mt-1 text-sm text-stone-500">支付回跳后请刷新订单，以服务端入账结果为准。</p></div><button className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 px-4 text-sm text-stone-300 transition hover:border-cyan-100/35 hover:text-white disabled:opacity-50" disabled={loading} onClick={() => void loadBilling()} type="button"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />刷新</button></header>{orders.length ? <div className="overflow-x-auto"><table className="w-full min-w-[760px] border-collapse text-left text-sm"><thead><tr className="border-b border-white/8 text-xs text-stone-500"><th className="px-6 py-4 font-medium">订单号</th><th className="px-4 py-4 font-medium">充值额度</th><th className="px-4 py-4 font-medium">实付</th><th className="px-4 py-4 font-medium">支付方式</th><th className="px-4 py-4 font-medium">状态</th><th className="px-6 py-4 font-medium">创建时间</th></tr></thead><tbody>{orders.map((order, index) => { const status = statusLabel(first(order, "status", "state")); return <tr className="border-b border-white/[0.055] text-stone-300 last:border-0" key={String(first(order, "id", "tradeNo", "trade_no") ?? index)}><td className="px-6 py-4 font-mono text-xs text-stone-400">{String(first(order, "tradeNo", "trade_no", "orderNo", "order_no", "id") ?? "—")}</td><td className="px-4 py-4 font-mono text-white">{formatMetric(first(order, "amount", "quota"))}</td><td className="px-4 py-4 font-mono text-white">{currency} {formatMetric(first(order, "payableAmount", "payable_amount", "money", "paymentAmount", "payment_amount"))}</td><td className="px-4 py-4">{String(first(order, "paymentMethod", "payment_method", "method") ?? "—")}</td><td className="px-4 py-4"><span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] ${status.className}`}>{status.label}</span></td><td className="px-6 py-4 text-stone-500">{formatDate(first(order, "createdAt", "created_at", "createTime", "create_time"))}</td></tr>; })}</tbody></table></div> : <div className="px-6 py-14 text-center"><span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl border border-white/8 bg-white/[0.035] text-stone-500"><ReceiptText className="h-5 w-5" /></span><h3 className="mt-4 font-semibold text-white">暂无充值订单</h3><p className="mt-2 text-sm text-stone-500">完成第一笔充值后，订单和入账状态会出现在这里。</p></div>}</section>
 
       <div className="flex items-start gap-3 rounded-2xl border border-white/8 bg-white/[0.025] px-5 py-4 text-xs leading-6 text-stone-500"><Banknote className="mt-0.5 h-4 w-4 shrink-0 text-stone-400" /><p>支付结果由服务端回调确认。浏览器跳转或返回本页不代表已入账，请以余额和订单状态为准。</p></div>
+      {qrPayment ? <div className="fixed inset-0 z-[100] grid place-items-center bg-black/75 p-5 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="微信支付二维码"><div className="w-full max-w-sm rounded-3xl border border-white/12 bg-[#0b1119] p-6 text-center shadow-2xl"><div className="flex items-center justify-between"><div className="text-left"><h2 className="text-xl font-semibold text-white">微信扫码支付</h2><p className="mt-1 text-xs text-stone-500">支付完成后页面会自动更新</p></div><button className="grid h-9 w-9 place-items-center rounded-full border border-white/10 text-stone-400 hover:text-white" onClick={() => setQrPayment(null)} type="button" aria-label="关闭支付二维码"><X className="h-4 w-4" /></button></div><div className="mx-auto mt-6 w-fit rounded-2xl bg-white p-4"><QRCodeSVG value={qrPayment.codeUrl} size={224} level="M" /></div><p className="mt-5 font-mono text-xs text-stone-500">订单号：{qrPayment.tradeNo}</p><div className="mt-4 inline-flex items-center gap-2 text-sm text-emerald-200"><Loader2 className="h-4 w-4 animate-spin" />等待支付结果</div></div></div> : null}
     </div>
   );
 }

@@ -7,6 +7,12 @@ import mysql, { type Pool, type RowDataPacket } from "mysql2/promise";
 import { oidcClaimsFromSession } from "@/lib/oidc-provider";
 import type { PlatformSessionUser } from "@/lib/platform-auth";
 import { writeDatabase } from "@/lib/database";
+import {
+  createWechatNativeOrder,
+  getWechatOrder,
+  listWechatOrders,
+  wechatPayConfigured
+} from "@/lib/wechat-pay";
 
 const INTERNAL_TOKEN_NAME = "灵穹创作平台内部调用";
 const INTERNAL_TOKEN_CACHE_MS = 10 * 60 * 1000;
@@ -657,12 +663,21 @@ function sanitizedPaymentSettings(value: unknown) {
         .filter((item) => item.type)
     : [];
 
+  if (wechatPayConfigured()) {
+    paymentMethods.unshift({
+      color: "#07c160",
+      minTopup: 1,
+      name: "微信支付",
+      type: "wechat_native"
+    });
+  }
+
   return {
     amountOptions: Array.isArray(input.amount_options)
       ? input.amount_options.map((item) => numberValue(item)).filter((item) => item > 0)
       : [],
-    complianceConfirmed: Boolean(input.payment_compliance_confirmed),
-    enableOnlineTopup: Boolean(input.enable_online_topup),
+    complianceConfirmed: wechatPayConfigured() || Boolean(input.payment_compliance_confirmed),
+    enableOnlineTopup: wechatPayConfigured() || Boolean(input.enable_online_topup),
     enableRedemption: Boolean(input.enable_redemption),
     minTopup: numberValue(input.min_topup, 1),
     paymentMethods
@@ -697,14 +712,27 @@ export async function getLingqiongBilling(session: PlatformSessionUser) {
     );
   }
 
-  const [settingsPayload, ordersPayload] = await Promise.all([
+  const principal = principalForSession(session);
+  const [settingsPayload, ordersPayload, wechatOrders] = await Promise.all([
     newApiUserRequest(user, "/api/user/topup/info"),
-    newApiUserRequest(user, "/api/user/topup/self?p=1&size=20")
+    newApiUserRequest(user, "/api/user/topup/self?p=1&size=20"),
+    listWechatOrders(principal.principalId)
   ]);
 
   return {
     ...state,
-    orders: payloadItems(ordersPayload).map((item) => {
+    orders: [
+      ...wechatOrders.map((order) => ({
+        amount: Number(order.quota_amount),
+        completeTime: order.paid_at,
+        createTime: order.created_at,
+        money: Number(order.amount_fen) / 100,
+        paymentMethod: "微信支付",
+        paymentProvider: "wechat_pay_v3",
+        status: order.status,
+        tradeNo: order.trade_no
+      })),
+      ...payloadItems(ordersPayload).map((item) => {
       const order = item as Record<string, unknown>;
       return {
         amount: numberValue(order.amount),
@@ -716,7 +744,7 @@ export async function getLingqiongBilling(session: PlatformSessionUser) {
         status: stringValue(order.status),
         tradeNo: stringValue(order.trade_no)
       };
-    }),
+    })].sort((a, b) => new Date(String(b.createTime || 0)).getTime() - new Date(String(a.createTime || 0)).getTime()).slice(0, 20),
     settings: sanitizedPaymentSettings(settingsPayload.data)
   };
 }
@@ -793,6 +821,14 @@ export async function quoteLingqiongTopup(
   }
 
   const user = await billingUser(session);
+  if (paymentMethod === "wechat_native") {
+    if (!wechatPayConfigured()) {
+      throw new LingqiongAccountError("WECHAT_PAY_UNAVAILABLE", "微信支付尚未配置完整。", 503);
+    }
+    const currency = await getCurrencyConfig();
+    const quotaAmount = Math.max(1, Math.round(amount * currency.quotaPerUnit / currency.usdExchangeRate));
+    return { amount, currency: "CNY", payable: amount, paymentMethod, quotaAmount };
+  }
   const payload = await newApiUserRequest(
     user,
     paymentEndpoint(paymentMethod, "amount"),
@@ -854,6 +890,15 @@ export async function createLingqiongPayment(
 ) {
   const quote = await quoteLingqiongTopup(session, input);
   const user = await billingUser(session);
+  if (quote.paymentMethod === "wechat_native") {
+    const order = await createWechatNativeOrder({
+      amountFen: Math.round(quote.payable * 100),
+      newApiUserId: user.id,
+      principalId: principalForSession(session).principalId,
+      quotaAmount: Number(quote.quotaAmount)
+    });
+    return { ...quote, ...order };
+  }
   const publicBase = (process.env.WCU_PUBLIC_BASE_URL || "http://localhost").replace(
     /\/+$/u,
     ""
@@ -882,6 +927,16 @@ export async function createLingqiongPayment(
   }
 
   return { ...quote, paymentUrl };
+}
+
+export async function getLingqiongPaymentStatus(session: PlatformSessionUser, rawTradeNo: unknown) {
+  const tradeNo = stringValue(rawTradeNo).trim();
+  if (!/^LQ[A-Za-z0-9]{10,30}$/u.test(tradeNo)) {
+    throw new LingqiongAccountError("INVALID_PAYMENT_ORDER", "支付订单号不正确。", 400);
+  }
+  const order = await getWechatOrder(tradeNo, principalForSession(session).principalId);
+  if (!order) throw new LingqiongAccountError("PAYMENT_ORDER_NOT_FOUND", "支付订单不存在。", 404);
+  return { paid: order.status === "paid", status: order.status, tradeNo: order.trade_no };
 }
 
 export async function redeemLingqiongCode(

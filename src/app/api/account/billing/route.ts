@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { requirePlatformUser } from "@/lib/auth-guards";
 import {
   createLingqiongPayment,
+  getLingqiongPaymentStatus,
   getLingqiongBilling,
   LingqiongAccountError,
   quoteLingqiongTopup,
@@ -70,6 +71,7 @@ export async function POST(request: Request) {
         amount?: unknown;
         code?: unknown;
         paymentMethod?: unknown;
+        tradeNo?: unknown;
       }
     | null;
 
@@ -104,6 +106,13 @@ export async function POST(request: Request) {
     if (body.action === "redeem") {
       return NextResponse.json({
         data: await redeemLingqiongCode(auth.session, body.code),
+        ok: true
+      });
+    }
+
+    if (body.action === "status") {
+      return NextResponse.json({
+        data: await getLingqiongPaymentStatus(auth.session, body.tradeNo),
         ok: true
       });
     }
