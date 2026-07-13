@@ -4,9 +4,10 @@
 -->
 <template>
   <div class="anticon" :class="getAppLogoClass" @click="goHome">
-    <img src="../../../assets/images/logo.png" />
-    <div class="ml-2 truncate md:opacity-100" :class="getTitleClass" v-show="showTitle">
-      {{ shortTitle }}
+    <span class="lingqiong-logo-mark">✦</span>
+    <div class="lingqiong-logo-copy ml-2 truncate md:opacity-100" :class="getTitleClass" v-show="showTitle">
+      <strong>战纪宇宙</strong>
+      <small>WAR CHRONICLE UNIVERSE</small>
     </div>
   </div>
 </template>
@@ -37,7 +38,7 @@
   const { prefixCls } = useDesign('app-logo');
   const { getCollapsedShowTitle } = useMenuSetting();
   const userStore = useUserStore();
-  const { title, shortTitle } = useGlobSetting();
+  useGlobSetting();
   
   const go = useGo();
 
@@ -84,10 +85,33 @@
     }
 
     &__title {
-      font-size: 18px;
-      font-weight: 600;
+      font-size: 16px;
+      font-weight: 650;
       transition: all 0.5s;
       line-height: normal;
+    }
+
+    .lingqiong-logo-mark {
+      display: grid;
+      width: 36px;
+      height: 36px;
+      flex: 0 0 36px;
+      place-items: center;
+      border: 1px solid rgba(103, 232, 249, 0.45);
+      border-radius: 11px;
+      color: #67e8f9;
+      background: linear-gradient(145deg, rgba(34, 211, 238, 0.18), rgba(8, 47, 73, 0.42));
+      box-shadow: 0 0 24px rgba(34, 211, 238, 0.1);
+    }
+
+    .lingqiong-logo-copy {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      color: #f8fafc;
+
+      strong { font-size: 15px; letter-spacing: 0.05em; }
+      small { color: #64748b; font-size: 7px; letter-spacing: 0.18em; }
     }
   }
 </style>

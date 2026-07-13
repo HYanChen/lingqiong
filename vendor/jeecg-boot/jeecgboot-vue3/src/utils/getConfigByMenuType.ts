@@ -35,9 +35,9 @@ export function getConfigByMenuType(menuType: MenuTypeEnum): {
     sideBgColor = SIDE_BAR_BG_COLOR_LIST[0];
   } else if (menuType === MenuTypeEnum.SIDEBAR) {
     // 侧边栏导航
-    themeColor = APP_PRESET_COLOR_LIST[1];
-    headerBgColor = HEADER_PRESET_BG_COLOR_LIST[4];
-    sideBgColor = SIDE_BAR_BG_COLOR_LIST[7];
+    themeColor = '#67e8f9';
+    headerBgColor = '#05090d';
+    sideBgColor = '#07101a';
   }
   return {
     themeColor,

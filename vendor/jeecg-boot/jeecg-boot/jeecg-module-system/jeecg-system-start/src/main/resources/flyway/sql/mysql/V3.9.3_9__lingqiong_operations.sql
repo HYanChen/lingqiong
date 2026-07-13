@@ -1,7 +1,9 @@
+SET NAMES utf8mb4;
+
 INSERT IGNORE INTO sys_permission
 (id, parent_id, name, url, component, is_route, component_name, menu_type, perms, perms_type, sort_no, always_show, icon, is_leaf, keep_alive, hidden, hide_tab, create_by, create_time, del_flag, rule_flag, status, internal_or_external)
 VALUES
-('lq000000000000000000000000000001', NULL, '灵穹运营中心', '/lingqiong', 'layouts/RouteView', 1, 'LingqiongRoot', 0, NULL, '1', 1, 1, 'ant-design:control-outlined', 0, 0, 0, 0, 'admin', NOW(), 0, 0, '1', 0),
+('lq000000000000000000000000000001', NULL, '战纪宇宙运营中心', '/lingqiong', 'layouts/RouteView', 1, 'LingqiongRoot', 0, NULL, '1', 0.1, 1, 'ant-design:control-outlined', 0, 0, 0, 0, 'admin', NOW(), 0, 0, '1', 0),
 ('lq000000000000000000000000000002', 'lq000000000000000000000000000001', '运营总览', '/lingqiong/operations', 'lingqiong/operations/index', 1, 'LingqiongOperations', 1, 'lingqiong:dashboard:view', '1', 1, 0, 'ant-design:dashboard-outlined', 1, 0, 0, 0, 'admin', NOW(), 0, 0, '1', 0),
 ('lq000000000000000000000000000003', 'lq000000000000000000000000000002', '项目查看', NULL, NULL, 0, NULL, 2, 'lingqiong:projects:list', '1', 1, 0, NULL, 1, 0, 0, 0, 'admin', NOW(), 0, 0, '1', 0),
 ('lq000000000000000000000000000004', 'lq000000000000000000000000000002', '项目编辑', NULL, NULL, 0, NULL, 2, 'lingqiong:projects:edit', '1', 2, 0, NULL, 1, 0, 0, 0, 'admin', NOW(), 0, 0, '1', 0),
@@ -32,3 +34,26 @@ SELECT MD5(CONCAT(role.id, permission.id)), role.id, permission.id, NOW()
 FROM sys_role role
 JOIN sys_permission permission ON permission.id LIKE 'lq0000000000000000000000000000%'
 WHERE role.role_code = 'admin';
+
+-- 旧环境曾使用非 UTF-8 客户端导入，INSERT IGNORE 无法修复已存在记录；每次部署主动纠正菜单文字。
+UPDATE sys_permission
+SET name = CASE id
+  WHEN 'lq000000000000000000000000000001' THEN '战纪宇宙运营中心'
+  WHEN 'lq000000000000000000000000000002' THEN '运营总览'
+  WHEN 'lq000000000000000000000000000003' THEN '项目查看'
+  WHEN 'lq000000000000000000000000000004' THEN '项目编辑'
+  WHEN 'lq000000000000000000000000000005' THEN '用户查看'
+  WHEN 'lq000000000000000000000000000006' THEN '用户编辑'
+  WHEN 'lq000000000000000000000000000007' THEN '任务查看'
+  WHEN 'lq000000000000000000000000000008' THEN '任务操作'
+  WHEN 'lq000000000000000000000000000009' THEN '业务服务调用'
+  WHEN 'lq000000000000000000000000000010' THEN '官网内容编辑'
+  WHEN 'lq000000000000000000000000000011' THEN '全业务数据中心'
+  WHEN 'lq000000000000000000000000000012' THEN '业务数据编辑'
+  WHEN 'lq000000000000000000000000000013' THEN '官网与平台配置'
+  ELSE name
+END,
+sort_no = CASE WHEN id = 'lq000000000000000000000000000001' THEN 0.1 ELSE sort_no END
+WHERE id LIKE 'lq0000000000000000000000000000%';
+
+UPDATE sys_user SET home_path = '/lingqiong/operations' WHERE username = 'admin';

@@ -128,7 +128,7 @@ export async function createWechatOfficialAuthorization(requestUrl: URL) {
   const settings = await getLoginSettings();
 
   if (!officialSetupReady(settings)) {
-    throw new Error("微信开放平台登录尚未配置完整。");
+    throw new Error("微信公众号授权登录尚未配置完整。");
   }
 
   const nonce = randomUUID().replaceAll("-", "");
@@ -211,7 +211,7 @@ export async function completeWechatOfficialLogin(input: {
   const settings = await getLoginSettings();
 
   if (!officialSetupReady(settings)) {
-    throw new Error("微信开放平台登录尚未配置完整。");
+    throw new Error("微信公众号授权登录尚未配置完整。");
   }
 
   const token = await exchangeWechatCode({
@@ -233,7 +233,7 @@ export async function completeWechatOfficialLogin(input: {
   const user = await findOrCreateFrontUserIdentity({
     account,
     contact: `wechat:${providerSubject}`,
-    profile: "微信开放平台登录",
+    profile: "微信公众号授权登录",
     provider: "wechat",
     providerSubject
   });

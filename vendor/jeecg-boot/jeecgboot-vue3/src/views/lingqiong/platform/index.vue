@@ -1,5 +1,13 @@
 <template>
-  <div class="p-4">
+  <div class="lingqiong-page-shell">
+    <section class="lingqiong-page-hero platform-hero">
+      <div>
+        <small>PLATFORM CONTROL</small>
+        <h1>官网与平台配置</h1>
+        <p>这里保存的品牌、人物、登录、模型和项目类型会立即同步到灵穹官网与创作者工作台。</p>
+      </div>
+      <a-button href="https://pla.wiki/" target="_blank">预览正式官网</a-button>
+    </section>
     <a-card :bordered="false">
       <template #title>
         <div>
@@ -76,7 +84,7 @@
               <a-col :xs="24" :md="12">
                 <a-form-item label="登录模式">
                   <a-radio-group v-model:value="wechat.mode">
-                    <a-radio-button value="official">微信开放平台</a-radio-button>
+                    <a-radio-button value="official">微信公众号网页授权</a-radio-button>
                     <a-radio-button value="local-scan">本机测试扫码</a-radio-button>
                   </a-radio-group>
                 </a-form-item>
@@ -271,6 +279,7 @@
 </script>
 
 <style scoped>
+  .platform-hero { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
   .page-title { font-size: 20px; font-weight: 700; }
   .page-subtitle { margin-top: 4px; color: var(--text-color-secondary); font-size: 13px; font-weight: 400; }
   .section-toolbar { display: flex; gap: 16px; align-items: center; justify-content: space-between; margin-bottom: 18px; }
@@ -284,5 +293,5 @@
   .settings-form { max-width: 980px; }
   .upload-row { display: flex; gap: 12px; align-items: center; }
   .upload-row :deep(.ant-input) { flex: 1; }
-  @media (max-width: 768px) { .section-toolbar, .upload-row { align-items: stretch; flex-direction: column; } }
+  @media (max-width: 768px) { .platform-hero, .section-toolbar, .upload-row { align-items: stretch; flex-direction: column; } }
 </style>

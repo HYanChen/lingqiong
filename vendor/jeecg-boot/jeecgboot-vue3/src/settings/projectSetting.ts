@@ -21,10 +21,10 @@ const { themeColor, headerBgColor, sideBgColor, split, mode } = getConfigByMenuT
 // ! 改动后需要清空浏览器缓存
 const setting: ProjectConfig = {
   // 是否显示SettingButton
-  showSettingButton: true,
+  showSettingButton: false,
 
   // 是否显示主题切换按钮
-  showDarkModeToggle: true,
+  showDarkModeToggle: false,
 
   // 设置按钮位置 可选项
   // SettingButtonPositionEnum.AUTO: 自动选择
@@ -80,7 +80,7 @@ const setting: ProjectConfig = {
     // 是否显示顶部
     show: true,
     // 主题
-    theme: ThemeEnum.LIGHT,
+    theme: ThemeEnum.DARK,
     // 开启锁屏功能
     useLockPage: false,
     // 显示全屏按钮
@@ -117,7 +117,7 @@ const setting: ProjectConfig = {
     // 菜单类型
     type: menuType,
     // 菜单主题
-    theme: ThemeEnum.LIGHT,
+    theme: ThemeEnum.DARK,
     // 左侧导航栏文字颜色调整区分彩色和暗黑 (不对应配置)
     isThemeBright: false,
     // 分割菜单
@@ -151,7 +151,7 @@ const setting: ProjectConfig = {
     // 是否显示折叠按钮
     showFold: true,
     // 标签页样式
-    theme: TabsThemeEnum.CARD,
+    theme: TabsThemeEnum.SMOOTH,
   },
 
   // 动画配置

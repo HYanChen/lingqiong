@@ -230,6 +230,8 @@ function audit() {
     ADMIN_SECRET: "parity-placeholder-admin-secret",
     BOOKSTACK_APP_KEY:
       "base64:cGFyaXR5LXBsYWNlaG9sZGVyLWJvb2tzdGFjay1rZXk=",
+    JEECG_SERVICE_SECRET: "parity-placeholder-jeecg-service-secret",
+    JEECG_SIGNATURE_SECRET: "parity-placeholder-jeecg-signature-secret",
     MYSQL_DATABASE: "lingqiong_parity",
     MYSQL_PASSWORD: "parity-placeholder-mysql-password",
     MYSQL_ROOT_PASSWORD: "parity-placeholder-root-password",
@@ -374,11 +376,6 @@ function audit() {
   }
 
   const allowedProductionOnlyEnvironment = {
-    "platform-api": [
-      "ADMIN_SECRET",
-      "WCU_ENABLE_LOCAL_SCAN_LOGIN",
-      "WCU_INVITE_CODES"
-    ],
     "new-api": ["SESSION_COOKIE_SECURE", "SESSION_COOKIE_TRUSTED_URL"]
   };
   for (const serviceName of localServices) {

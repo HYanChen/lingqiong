@@ -59,7 +59,7 @@ services:
         if ! mysql -hmysql -uroot -N -e "SELECT 1 FROM information_schema.tables WHERE table_schema='jeecg_boot' AND table_name='sys_user'" | grep -q 1; then
           sed 's/`jeecg-boot`/`jeecg_boot`/g' /bootstrap/jeecg.sql | mysql -hmysql -uroot
         fi
-        mysql -hmysql -uroot jeecg_boot < /bootstrap/lingqiong.sql
+        mysql --default-character-set=utf8mb4 -hmysql -uroot jeecg_boot < /bootstrap/lingqiong.sql
 
   jeecg-redis:
     image: redis:7.4-alpine

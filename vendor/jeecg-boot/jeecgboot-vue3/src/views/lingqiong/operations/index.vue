@@ -1,8 +1,20 @@
 <template>
-  <div class="p-4">
+  <div class="lingqiong-page-shell">
+    <section class="lingqiong-page-hero operations-hero">
+      <div>
+        <small>LINGQIONG OPERATIONS</small>
+        <h1>运营总览</h1>
+        <p>官网用户、创作项目、生产任务与模型调用共享同一业务数据源，前后台修改实时同步。</p>
+      </div>
+      <a-space class="hero-actions">
+        <a-button href="https://pla.wiki/" target="_blank">查看官网</a-button>
+        <a-button type="primary" href="https://pla.wiki/projects" target="_blank">进入创作端</a-button>
+      </a-space>
+    </section>
     <a-row :gutter="16">
       <a-col v-for="item in summaryCards" :key="item.key" :xs="12" :md="6" :xl="3">
         <a-card class="summary-card" :bordered="false">
+          <span class="summary-index">{{ String(summaryCards.findIndex((card) => card.key === item.key) + 1).padStart(2, '0') }}</span>
           <a-statistic :title="item.label" :value="summary[item.key] || 0" />
         </a-card>
       </a-col>
@@ -129,5 +141,9 @@
 </script>
 
 <style scoped>
-  .summary-card { margin-bottom: 16px; }
+  .operations-hero { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+  .summary-card { position: relative; min-height: 112px; margin-bottom: 16px; overflow: hidden; }
+  .summary-card::after { content: ''; position: absolute; right: -26px; bottom: -38px; width: 90px; height: 90px; border: 1px solid rgba(103, 232, 249, 0.12); border-radius: 50%; }
+  .summary-index { display: block; margin-bottom: 8px; color: #334155; font-size: 10px; font-weight: 700; letter-spacing: 0.2em; }
+  @media (max-width: 768px) { .operations-hero { align-items: flex-start; flex-direction: column; } }
 </style>

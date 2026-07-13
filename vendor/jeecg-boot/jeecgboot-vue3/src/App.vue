@@ -33,7 +33,7 @@
   const modeAction = (data) => {
     if (data.token) {
       if (getDarkMode.value === ThemeEnum.DARK) {
-        Object.assign(data.token, { colorTextBase: 'fff' });
+        Object.assign(data.token, { colorTextBase: '#f8fafc' });
       } else {
         Object.assign(data.token, { colorTextBase: '#333' });
       }
@@ -74,16 +74,21 @@
         ...{
           token: {
             colorPrimary: primary,
-            wireframe: true,
+            wireframe: false,
             fontSize: 14,
-            colorTextBase: '#333',
-            colorSuccess: '#55D187',
+            colorTextBase: '#f8fafc',
+            colorBgBase: '#030609',
+            colorBgContainer: '#0a111a',
+            colorBgElevated: '#0d1722',
+            colorBorder: 'rgba(148, 163, 184, 0.18)',
+            colorBorderSecondary: 'rgba(148, 163, 184, 0.12)',
+            colorSuccess: '#34d399',
             colorInfo: primary,
-            borderRadius: 4,
+            borderRadius: 10,
             sizeStep: 4,
             sizeUnit: 4,
-            colorWarning: '#EFBD47',
-            colorError: '#ED6F6F',
+            colorWarning: '#fbbf24',
+            colorError: '#fb7185',
             fontFamily:
               '-apple-system,BlinkMacSystemFont,Segoe UI,PingFang SC,Hiragino Sans GB,Microsoft YaHei,Helvetica Neue,Helvetica,Arial,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol',
           },

@@ -8,6 +8,8 @@ services:
       - platform-api
       - new-api
       - bookstack
+      - jeecg-admin
+      - jeecg-system
     ports:
       - "80:80"
     volumes:
@@ -30,9 +32,89 @@ services:
       PLATFORM_API_TIMEOUT_MS: "${PLATFORM_API_TIMEOUT_MS:-3500}"
       PLATFORM_RUNTIME_ROLE: web
       PLATFORM_AUTH_SECRET: "${PLATFORM_AUTH_SECRET:-zhanji-platform-local-secret}"
+      JEECG_SERVICE_SECRET: "${JEECG_SERVICE_SECRET:-zhanji-jeecg-service-local-secret}"
       WCU_PUBLIC_BASE_URL: "${WCU_PUBLIC_BASE_URL:-http://localhost}"
     volumes:
       - ./data/site-media:/app/data/site-media:ro
+
+  jeecg-db-init:
+    image: mysql:8.4
+    container_name: zhanji-jeecg-db-init
+    restart: "no"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_PWD: "${MYSQL_ROOT_PASSWORD:-zhanji-local-root-password}"
+      MYSQL_USER: "${MYSQL_USER:-zhanji}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-zhanji-local-password}"
+    volumes:
+      - ./vendor/jeecg-boot/jeecg-boot/db/jeecgboot-mysql-5.7.sql:/bootstrap/jeecg.sql:ro
+      - ./vendor/jeecg-boot/jeecg-boot/jeecg-module-system/jeecg-system-start/src/main/resources/flyway/sql/mysql/V3.9.3_9__lingqiong_operations.sql:/bootstrap/lingqiong.sql:ro
+    command:
+      - sh
+      - -c
+      - |
+        mysql -hmysql -uroot -e "CREATE DATABASE IF NOT EXISTS jeecg_boot CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci; GRANT ALL PRIVILEGES ON jeecg_boot.* TO '$${MYSQL_USER}'@'%'; FLUSH PRIVILEGES;"
+        if ! mysql -hmysql -uroot -N -e "SELECT 1 FROM information_schema.tables WHERE table_schema='jeecg_boot' AND table_name='sys_user'" | grep -q 1; then
+          sed 's/`jeecg-boot`/`jeecg_boot`/g' /bootstrap/jeecg.sql | mysql --default-character-set=utf8mb4 -hmysql -uroot
+        fi
+        mysql --default-character-set=utf8mb4 -hmysql -uroot jeecg_boot < /bootstrap/lingqiong.sql
+
+  jeecg-redis:
+    image: redis:7.4-alpine
+    container_name: zhanji-jeecg-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - ./data/jeecg-redis:/data
+
+  jeecg-system:
+    image: lingqiong_jeecg_system:latest
+    build:
+      context: .
+      dockerfile: infra/jeecg/Dockerfile.system
+    container_name: zhanji-jeecg-system
+    restart: unless-stopped
+    depends_on:
+      jeecg-db-init:
+        condition: service_completed_successfully
+      jeecg-redis:
+        condition: service_started
+    expose:
+      - "8080"
+    environment:
+      TZ: "${TZ:-Asia/Shanghai}"
+      JEECG_DB_HOST: mysql
+      JEECG_DB_PORT: "3306"
+      JEECG_DB_NAME: jeecg_boot
+      JEECG_DB_USER: "${MYSQL_USER:-zhanji}"
+      JEECG_DB_PASSWORD: "${MYSQL_PASSWORD:-zhanji-local-password}"
+      LINGQIONG_DB_HOST: mysql
+      LINGQIONG_DB_PORT: "3306"
+      LINGQIONG_DB_NAME: "${MYSQL_DATABASE:-zhanji_universe}"
+      LINGQIONG_DB_USER: "${MYSQL_USER:-zhanji}"
+      LINGQIONG_DB_PASSWORD: "${MYSQL_PASSWORD:-zhanji-local-password}"
+      JEECG_REDIS_HOST: jeecg-redis
+      JEECG_REDIS_PORT: "6379"
+      JEECG_LOW_CODE_MODE: prod
+      JEECG_SIGNATURE_SECRET: "${JEECG_SIGNATURE_SECRET:-zhanji-jeecg-signature-local-secret}"
+      LINGQIONG_PLATFORM_API_URL: http://platform-api:3000/api
+      LINGQIONG_SERVICE_SECRET: "${JEECG_SERVICE_SECRET:-zhanji-jeecg-service-local-secret}"
+    volumes:
+      - ./data/site-media:/app/data/site-media
+
+  jeecg-admin:
+    image: lingqiong_jeecg_admin:latest
+    build:
+      context: .
+      dockerfile: infra/jeecg/Dockerfile.admin
+    container_name: zhanji-jeecg-admin
+    restart: unless-stopped
+    depends_on:
+      - jeecg-system
+    expose:
+      - "80"
 
   platform-api:
     build:
@@ -55,7 +137,9 @@ services:
       MYSQL_PASSWORD: "${MYSQL_PASSWORD:-zhanji-local-password}"
       ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
       ADMIN_PASSWORD: "${ADMIN_PASSWORD:-zhanji2026}"
+      ADMIN_SECRET: "${ADMIN_SECRET:-zhanji-admin-local-secret}"
       ADMIN_COOKIE_SECURE: "${ADMIN_COOKIE_SECURE:-false}"
+      JEECG_SERVICE_SECRET: "${JEECG_SERVICE_SECRET:-zhanji-jeecg-service-local-secret}"
       NEW_API_ADMIN_PUBLIC_URL: "${NEW_API_ADMIN_PUBLIC_URL:-http://localhost/api}"
       NEW_API_INTERNAL_BASE_URL: "${NEW_API_INTERNAL_BASE_URL:-http://new-api:3000/v1}"
       NEW_API_SERVER_BASE_URL: "${NEW_API_SERVER_BASE_URL:-http://new-api:3000}"
@@ -69,6 +153,8 @@ services:
       MODEL_API_LOG_RESPONSE_CHARS: "${MODEL_API_LOG_RESPONSE_CHARS:-24000}"
       PLATFORM_AUTH_SECRET: "${PLATFORM_AUTH_SECRET:-zhanji-platform-local-secret}"
       WCU_ALLOW_DATABASE_FALLBACK: "false"
+      WCU_ENABLE_LOCAL_SCAN_LOGIN: "${WCU_ENABLE_LOCAL_SCAN_LOGIN:-true}"
+      WCU_INVITE_CODES: "${WCU_INVITE_CODES:-LINGQIONG-LOCAL}"
       WCU_PUBLIC_BASE_URL: "${WCU_PUBLIC_BASE_URL:-http://localhost}"
       WCU_OIDC_CLIENT_ID: "${WCU_OIDC_CLIENT_ID:-zhanji-bookstack}"
       WCU_OIDC_CLIENT_SECRET: "${WCU_OIDC_CLIENT_SECRET:-zhanji-bookstack-local-secret}"

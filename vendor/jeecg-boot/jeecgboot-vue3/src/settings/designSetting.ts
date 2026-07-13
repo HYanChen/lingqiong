@@ -2,10 +2,11 @@ import { ThemeEnum } from '../enums/appEnum';
 
 export const prefixCls = 'jeecg';
 
-export const darkMode = ThemeEnum.LIGHT;
+export const darkMode = ThemeEnum.DARK;
 
 // app theme preset color
 export const APP_PRESET_COLOR_LIST: string[] = [
+  '#67e8f9',
   '#0960bd',
   '#1890ff',
   '#009688',
@@ -21,6 +22,7 @@ export const APP_PRESET_COLOR_LIST: string[] = [
 
 // header preset color
 export const HEADER_PRESET_BG_COLOR_LIST: string[] = [
+  '#05090d',
   '#ffffff',
   '#151515',
   '#009688',
@@ -36,6 +38,7 @@ export const HEADER_PRESET_BG_COLOR_LIST: string[] = [
 
 // sider preset color
 export const SIDE_BAR_BG_COLOR_LIST: string[] = [
+  '#07101a',
   '#001529',
   // '#212121',
   '#009688',

@@ -1872,7 +1872,7 @@ export function AdminDashboard() {
                       />
                       <span>
                         <span className="block text-sm font-semibold text-stone-100">
-                          启用微信扫码登录
+                          启用微信授权登录
                         </span>
                         <span className="mt-1 block text-xs text-stone-500">
                           关闭后登录页只保留管理员密码入口。
@@ -1882,7 +1882,7 @@ export function AdminDashboard() {
 
                     <label className="block">
                       <span className="text-xs font-medium text-stone-400">
-                        扫码模式
+                        微信登录模式
                       </span>
                       <select
                         className="mt-2 w-full rounded-lg border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-stone-100 outline-none transition focus:border-cyan-200/70 focus:ring-2 focus:ring-cyan-200/15"
@@ -1894,7 +1894,7 @@ export function AdminDashboard() {
                         value={loginSettings.wechat.mode}
                       >
                         <option value="local-scan">站内扫码确认</option>
-                        <option value="official">微信开放平台</option>
+                        <option value="official">微信公众号网页授权</option>
                       </select>
                     </label>
 

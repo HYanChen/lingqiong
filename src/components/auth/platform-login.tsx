@@ -537,10 +537,10 @@ export function PlatformLogin({
                 type="button"
               >
                 <ArrowRight aria-hidden="true" className="h-4 w-4" />
-                使用微信扫码登录
+                使用微信公众号授权登录
               </button>
               <p className="mt-3 text-xs leading-6 text-stone-400">
-                将进入微信官方授权页面；授权后会创建或复用你的独立创作者账号。
+                当前 AppID 使用公众号网页授权，请在微信客户端中打开；授权后会创建或复用你的独立创作者账号。
               </p>
             </div>
           ) : wechatSettings?.wechat.enabled ? (

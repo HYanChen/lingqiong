@@ -6,6 +6,8 @@ dist
 !.env.example
 !.env.new-api.example
 !.env.baota.example
+!vendor/jeecg-boot/jeecgboot-vue3/.env
+!vendor/jeecg-boot/jeecgboot-vue3/.env.production
 .DS_Store
 *.log
 .pnpm-store/
