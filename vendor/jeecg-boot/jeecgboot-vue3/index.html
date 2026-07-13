@@ -30,7 +30,7 @@
     <div id="app">
       <style>
         html[data-theme='dark'] .app-loading {
-          background-color: #2c344a;
+          background: radial-gradient(circle at 50% 38%, rgba(37, 211, 218, 0.16), transparent 32%), #050708;
         }
 
         html[data-theme='dark'] .app-loading .app-loading-title {
@@ -44,7 +44,7 @@
           justify-content: center;
           align-items: center;
           flex-direction: column;
-          background-color: #f4f7f9;
+          background: radial-gradient(circle at 50% 38%, rgba(37, 211, 218, 0.16), transparent 32%), #050708;
         }
 
         .app-loading .app-loading-wrap {
@@ -70,16 +70,25 @@
           display: flex;
           margin-top: 30px;
           font-size: 30px;
-          color: rgba(0, 0, 0, 0.85);
+          color: rgba(239, 252, 255, 0.92);
           justify-content: center;
           align-items: center;
         }
 
         .app-loading .app-loading-logo {
-          display: block;
-          width: 90px;
+          display: grid;
+          width: 76px;
+          height: 76px;
           margin: 0 auto;
           margin-bottom: 20px;
+          border: 1px solid rgba(101, 232, 238, 0.55);
+          border-radius: 20px;
+          color: #9ff7f5;
+          background: linear-gradient(145deg, rgba(17, 64, 73, 0.92), rgba(5, 18, 23, 0.96));
+          box-shadow: 0 0 38px rgba(40, 214, 222, 0.18);
+          place-items: center;
+          font-size: 42px;
+          line-height: 1;
         }
 
         .dot {
@@ -99,7 +108,7 @@
           display: block;
           width: 20px;
           height: 20px;
-          background-color: #0065cc;
+          background-color: #65e8ee;
           border-radius: 100%;
           opacity: 0.3;
           transform: scale(0.75);
@@ -157,7 +166,7 @@
       </style>
       <div class="app-loading">
         <div class="app-loading-wrap">
-          <img src="<%= basePublicPath %>/resource/img/logo.png" class="app-loading-logo" alt="Logo" />
+          <div class="app-loading-logo" aria-label="战纪宇宙">✦</div>
           <div class="app-loading-dots">
             <span class="dot dot-spin"><i></i><i></i><i></i><i></i></span>
           </div>
