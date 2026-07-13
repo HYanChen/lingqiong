@@ -12,7 +12,7 @@ type ConfirmResponse = {
 export function WechatConfirm({ brandName }: { brandName: string }) {
   const searchParams = useSearchParams();
   const ticket = searchParams.get("ticket") ?? "";
-  const [confirmed, setConfirmed] = useState(false);
+  const [confirmed, setConfirmed] = useState(searchParams.get("confirmed") === "1");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -83,7 +83,7 @@ export function WechatConfirm({ brandName }: { brandName: string }) {
             </p>
           ) : null}
 
-          <button
+          {!confirmed ? <button
             className="mt-6 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-stone-50 px-5 text-sm font-semibold text-zinc-950 transition hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-60"
             disabled={loading || confirmed}
             onClick={() => void confirm()}
@@ -95,7 +95,7 @@ export function WechatConfirm({ brandName }: { brandName: string }) {
               <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
             )}
             {confirmed ? "已确认" : "确认登录"}
-          </button>
+          </button> : null}
         </div>
       </div>
     </section>

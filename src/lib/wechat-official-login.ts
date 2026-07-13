@@ -7,6 +7,10 @@ import {
   setPlatformSession
 } from "@/lib/platform-auth";
 import { safeFrontRedirectPath } from "@/lib/safe-redirect";
+import {
+  confirmWechatLoginTicket,
+  getWechatLoginTicket
+} from "@/lib/wechat-login";
 
 const STATE_MAX_AGE_SECONDS = 10 * 60;
 
@@ -14,6 +18,7 @@ type WechatStatePayload = {
   exp: number;
   next: string;
   nonce: string;
+  ticket?: string;
 };
 
 type WechatTokenResponse = {
@@ -73,12 +78,13 @@ function callbackUri(requestUrl: URL) {
   return `${requestUrl.origin}/_wcu-api/auth/wechat/callback`;
 }
 
-function createStateBinding(next: string, nonce: string) {
+function createStateBinding(next: string, nonce: string, ticket?: string) {
   const payload = base64UrlEncode(
     JSON.stringify({
       exp: Math.floor(Date.now() / 1000) + STATE_MAX_AGE_SECONDS,
       next,
-      nonce
+      nonce,
+      ticket
     } satisfies WechatStatePayload)
   );
 
@@ -133,6 +139,14 @@ export async function createWechatOfficialAuthorization(requestUrl: URL) {
 
   const nonce = randomUUID().replaceAll("-", "");
   const next = safeFrontRedirectPath(requestUrl.searchParams.get("next"));
+  const ticket = requestUrl.searchParams.get("ticket")?.trim();
+
+  if (ticket) {
+    const current = await getWechatLoginTicket(ticket);
+    if (!current || current.status !== "pending") {
+      throw new Error("微信登录二维码已失效，请在电脑端刷新后重试。");
+    }
+  }
   const authorizationUrl = new URL(
     "https://open.weixin.qq.com/connect/oauth2/authorize"
   );
@@ -145,7 +159,7 @@ export async function createWechatOfficialAuthorization(requestUrl: URL) {
 
   return {
     authorizationUrl,
-    stateBinding: createStateBinding(next, nonce)
+    stateBinding: createStateBinding(next, nonce, ticket)
   };
 }
 
@@ -230,6 +244,24 @@ export async function completeWechatOfficialLogin(input: {
 
   const account =
     profile.nickname?.trim() || `微信用户 ${providerSubject.slice(-8)}`;
+
+  if (binding.ticket) {
+    const ticket = await confirmWechatLoginTicket({
+      account,
+      code: binding.ticket,
+      contact: `wechat:${providerSubject}`
+    });
+
+    if (!ticket || ticket.status !== "confirmed") {
+      throw new Error("微信登录二维码已失效，请在电脑端刷新后重试。");
+    }
+
+    return {
+      next: "/wechat-login?confirmed=1",
+      user: undefined
+    };
+  }
+
   const user = await findOrCreateFrontUserIdentity({
     account,
     contact: `wechat:${providerSubject}`,

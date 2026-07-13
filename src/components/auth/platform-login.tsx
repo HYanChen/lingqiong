@@ -136,12 +136,6 @@ export function PlatformLogin({
     [wechatSettings?.oauth]
   );
 
-  function startOfficialWechatLogin() {
-    const url = new URL("/_wcu-api/auth/wechat/start", window.location.origin);
-    url.searchParams.set("next", nextPath);
-    window.location.assign(url);
-  }
-
   const navigateAfterLogin = useCallback(
     (path: string, user: FrontUser) => {
       writeFrontUser(user);
@@ -205,7 +199,7 @@ export function PlatformLogin({
         if (active && response.ok && result?.wechat) {
           setWechatSettings(result);
 
-          if (result.wechat.enabled && result.wechat.mode === "local-scan") {
+          if (result.wechat.enabled) {
             await requestWechatTicket();
           }
         }
@@ -228,7 +222,6 @@ export function PlatformLogin({
 
     if (
       !wechatSettings?.wechat.enabled ||
-      wechatSettings.wechat.mode !== "local-scan" ||
       !ticketCode
     ) {
       return;
@@ -521,29 +514,7 @@ export function PlatformLogin({
             </Link>
           </div>
 
-          {wechatSettings?.wechat.enabled &&
-          wechatSettings.wechat.mode === "official" ? (
-            <div className="mt-8 rounded-lg border border-cyan-200/20 bg-cyan-200/10 p-5">
-              <p className="flex items-center gap-2 text-base font-semibold text-cyan-50">
-                <QrCode aria-hidden="true" className="h-5 w-5" />
-                {wechatSettings.wechat.qrTitle}
-              </p>
-              <p className="mt-2 text-xs leading-6 text-cyan-50/70">
-                {wechatSettings.wechat.qrHint}
-              </p>
-              <button
-                className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#07c160] px-5 text-sm font-semibold text-white transition hover:bg-[#06ad56]"
-                onClick={startOfficialWechatLogin}
-                type="button"
-              >
-                <ArrowRight aria-hidden="true" className="h-4 w-4" />
-                使用微信公众号授权登录
-              </button>
-              <p className="mt-3 text-xs leading-6 text-stone-400">
-                当前 AppID 使用公众号网页授权，请在微信客户端中打开；授权后会创建或复用你的独立创作者账号。
-              </p>
-            </div>
-          ) : wechatSettings?.wechat.enabled ? (
+          {wechatSettings?.wechat.enabled ? (
             <div className="mt-8 rounded-lg border border-cyan-200/20 bg-cyan-200/10 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
