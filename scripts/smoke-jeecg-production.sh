@@ -3,18 +3,37 @@ set -Eeuo pipefail
 
 ROOT="${DEPLOY_ROOT:-/www/wwwroot/pla.wiki}"
 BASE="${JEECG_SMOKE_BASE:-http://localhost:18080/jeecgboot}"
+PLATFORM_BASE="${JEECG_SMOKE_PLATFORM_BASE:-http://localhost:18080/_wcu-api}"
 ENV_FILE="${JEECG_SMOKE_ENV_FILE:-$ROOT/.env.baota}"
 REDIS_CONTAINER="${JEECG_SMOKE_REDIS_CONTAINER:-lingqiong-jeecg-redis}"
 WORK="${JEECG_SMOKE_WORK_DIR:-$(mktemp -d)}"
+PROJECT_RESTORE_ACTIVE=0
+PROJECT_RESTORE_ID=""
+SERVICE_SECRET=""
+TOKEN=""
 mkdir -p "$WORK"
-if [[ "${JEECG_SMOKE_KEEP_WORK:-0}" != "1" ]]; then
-  trap 'rm -rf "$WORK"' EXIT
-fi
+
+cleanup() {
+  local status=$?
+  set +e
+  if [[ "$PROJECT_RESTORE_ACTIVE" == "1" && -n "$PROJECT_RESTORE_ID" && -n "$TOKEN" ]]; then
+    curl -fsS -X PUT -H 'Content-Type: application/json' \
+      -H "X-Access-Token: $TOKEN" --data-binary @"$WORK/project-restore.json" \
+      "$BASE/lingqiong/projects/edit" >/dev/null || \
+      echo "警告：联动回归项目自动恢复失败：$PROJECT_RESTORE_ID" >&2
+  fi
+  if [[ "${JEECG_SMOKE_KEEP_WORK:-0}" != "1" ]]; then
+    rm -rf "$WORK"
+  fi
+  return "$status"
+}
+trap cleanup EXIT
 
 set -a
 # shellcheck disable=SC1091
 source "$ENV_FILE"
 set +a
+SERVICE_SECRET="${JEECG_SMOKE_SERVICE_SECRET:-${JEECG_SERVICE_SECRET:-}}"
 
 login_with_password() {
   local password="$1"
@@ -91,6 +110,84 @@ PY
 if [[ -n "$PROJECT_ID" ]]; then
   curl -fsS "${auth[@]}" "$BASE/lingqiong/projects/$PROJECT_ID/flow" > "$WORK/project-flow.json"
   curl -fsS "${auth[@]}" "$BASE/lingqiong/data/episodes/list?pageNo=1&pageSize=100&projectId=$PROJECT_ID" > "$WORK/project-episodes.json"
+
+  if [[ "${JEECG_SMOKE_WRITE_THROUGH:-1}" == "1" && -n "$SERVICE_SECRET" ]]; then
+    curl -fsS -H "X-Lingqiong-Service-Secret: $SERVICE_SECRET" \
+      "$PLATFORM_BASE/projects/$PROJECT_ID" > "$WORK/project-platform-before.json"
+    python3 - "$WORK" <<'PY'
+import json
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+with (root / 'project-platform-before.json').open(encoding='utf-8') as handle:
+    project = json.load(handle)['project']
+
+baseline = {
+    'id': project['id'],
+    'name': project['name'],
+    'type': project['type'],
+    'aspectRatio': project['aspectRatio'],
+    'goal': project['goal'],
+    'style': project['style'],
+}
+with (root / 'project-restore.json').open('w', encoding='utf-8') as handle:
+    json.dump(baseline, handle, ensure_ascii=False)
+changed = dict(baseline)
+changed['style'] = f"{baseline['style']} [联动回归]"
+with (root / 'project-edit.json').open('w', encoding='utf-8') as handle:
+    json.dump(changed, handle, ensure_ascii=False)
+PY
+
+    curl -fsS -X PUT -H 'Content-Type: application/json' \
+      -H "X-Access-Token: $TOKEN" --data-binary @"$WORK/project-edit.json" \
+      "$BASE/lingqiong/projects/edit" > "$WORK/project-edit-result.json"
+    python3 - "$WORK/project-edit-result.json" <<'PY'
+import json
+import sys
+with open(sys.argv[1], encoding='utf-8') as handle:
+    assert json.load(handle).get('success') is True
+PY
+    PROJECT_RESTORE_ID="$PROJECT_ID"
+    PROJECT_RESTORE_ACTIVE=1
+
+    curl -fsS -H "X-Lingqiong-Service-Secret: $SERVICE_SECRET" \
+      "$PLATFORM_BASE/projects/$PROJECT_ID" > "$WORK/project-platform-edited.json"
+    python3 - "$WORK/project-platform-edited.json" <<'PY'
+import json
+import sys
+with open(sys.argv[1], encoding='utf-8') as handle:
+    project = json.load(handle)['project']
+assert project['style'].endswith(' [联动回归]')
+PY
+
+    curl -fsS -X PUT -H 'Content-Type: application/json' \
+      -H "X-Access-Token: $TOKEN" --data-binary @"$WORK/project-restore.json" \
+      "$BASE/lingqiong/projects/edit" > "$WORK/project-restore-result.json"
+    python3 - "$WORK/project-restore-result.json" <<'PY'
+import json
+import sys
+with open(sys.argv[1], encoding='utf-8') as handle:
+    assert json.load(handle).get('success') is True
+PY
+    PROJECT_RESTORE_ACTIVE=0
+
+    curl -fsS -H "X-Lingqiong-Service-Secret: $SERVICE_SECRET" \
+      "$PLATFORM_BASE/projects/$PROJECT_ID" > "$WORK/project-platform-restored.json"
+    python3 - "$WORK" <<'PY'
+import json
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+with (root / 'project-restore.json').open(encoding='utf-8') as handle:
+    baseline = json.load(handle)
+with (root / 'project-platform-restored.json').open(encoding='utf-8') as handle:
+    restored = json.load(handle)['project']
+for key in ('id', 'name', 'type', 'aspectRatio', 'goal', 'style'):
+    assert restored[key] == baseline[key]
+PY
+  fi
 fi
 
 PROJECT_ID="$PROJECT_ID" \
