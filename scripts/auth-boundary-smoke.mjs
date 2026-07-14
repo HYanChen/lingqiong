@@ -258,8 +258,13 @@ async function main() {
   );
   requireCondition(!loginHtml.includes("管理员登录"), "前台登录页暴露了管理员登录文案");
 
-  const adminPage = await request("/admin", { accept: "text/html" });
-  requireCondition(adminPage.status === 200, "匿名 /admin 未直接显示独立页面");
+  const adminEntry = await request("/admin", { accept: "text/html" });
+  requireCondition(
+    adminEntry.status === 308 && adminEntry.headers.get("location") === "/admin/",
+    "匿名 /admin 未按规范进入 Jeecg 独立后台"
+  );
+  const adminPage = await request("/admin/", { accept: "text/html" });
+  requireCondition(adminPage.status === 200, "Jeecg 独立后台页面不可用");
 
   const crossedFront = await request("/_wcu-api/auth/login", {
     json: { password: adminPassword, username: adminUsername },

@@ -264,6 +264,12 @@ curl -fsS http://localhost:18080/ >/dev/null
 curl -fsS http://localhost:18080/login >/dev/null
 curl -fsS http://localhost:18080/admin/ >/dev/null
 curl -fsS "http://localhost:18080/jeecgboot/sys/randomImage/final-${STAMP}" >/dev/null
+DEPLOY_ROOT="$ROOT" \
+JEECG_SMOKE_BASE="http://localhost:18080/jeecgboot" \
+JEECG_SMOKE_PLATFORM_BASE="http://localhost:18080/_wcu-api" \
+JEECG_SMOKE_ENV_FILE="$ROOT/.env.baota" \
+JEECG_SMOKE_REDIS_CONTAINER="lingqiong-jeecg-redis" \
+  bash "$ROOT/scripts/smoke-jeecg-production.sh"
 for public_url in \
   https://pla.wiki/ \
   https://pla.wiki/login \

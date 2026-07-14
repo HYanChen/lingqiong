@@ -3,7 +3,11 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 
-const baseUrl = (process.env.KNOWLEDGE_TEST_BASE_URL || "http://127.0.0.1").replace(
+const baseUrl = (
+  process.env.KNOWLEDGE_TEST_BASE_URL ||
+  process.env.BASE_URL ||
+  "http://localhost"
+).replace(
   /\/+$/u,
   ""
 );
@@ -32,6 +36,11 @@ const password =
   process.env.ADMIN_PASSWORD ||
   envFileValue("ADMIN_PASSWORD") ||
   "zhanji2026";
+const serviceSecret =
+  process.env.KNOWLEDGE_TEST_SERVICE_SECRET ||
+  process.env.JEECG_SERVICE_SECRET ||
+  envFileValue("JEECG_SERVICE_SECRET") ||
+  "";
 
 function apiUrl(path) {
   return `${baseUrl}${apiPrefix}${path.startsWith("/") ? path : `/${path}`}`;
@@ -71,22 +80,31 @@ function expect(result, status, label) {
   return result.body;
 }
 
-const login = await request("/auth/login", {
-  body: JSON.stringify({ mode: "admin", password, username }),
-  method: "POST"
-});
-expect(login, 200, "admin login");
-const cookie = (login.response.headers.getSetCookie?.() || [login.response.headers.get("set-cookie") || ""])
-  .flatMap((header) => header.split(/,(?=\s*[^;,]+=)/u))
-  .map((header) => header.split(";", 1)[0].trim())
-  .filter(Boolean)
-  .join("; ");
-assert(cookie.includes("wcu_platform_session="), "platform session cookie missing");
+let cookie = "";
+if (!serviceSecret) {
+  const login = await request("/auth/login", {
+    body: JSON.stringify({ mode: "admin", password, username }),
+    method: "POST"
+  });
+  expect(login, 200, "admin login");
+  cookie = (login.response.headers.getSetCookie?.() || [login.response.headers.get("set-cookie") || ""])
+    .flatMap((header) => header.split(/,(?=\s*[^;,]+=)/u))
+    .map((header) => header.split(";", 1)[0].trim())
+    .filter(Boolean)
+    .join("; ");
+  assert(cookie.includes("wcu_platform_session="), "platform session cookie missing");
+}
 
 const authenticated = (path, options = {}) =>
   request(path, {
     ...options,
-    headers: { cookie, ...(options.headers || {}) }
+    headers: {
+      ...(cookie ? { cookie } : {}),
+      ...(serviceSecret
+        ? { "x-lingqiong-service-secret": serviceSecret }
+        : {}),
+      ...(options.headers || {})
+    }
   });
 
 let checks = 0;

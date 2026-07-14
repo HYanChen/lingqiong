@@ -6,7 +6,7 @@ import { existsSync, readFileSync } from "node:fs";
 const baseUrl = new URL(process.env.BASE_URL || "http://127.0.0.1");
 
 function envValue(key) {
-  for (const file of [".env.local", ".env", ".env.new-api.example"]) {
+  for (const file of [".env.local", ".env", ".env.baota", ".env.new-api.example"]) {
     if (!existsSync(file)) continue;
     const match = readFileSync(file, "utf8")
       .split(/\r?\n/u)
@@ -19,6 +19,11 @@ function envValue(key) {
 
 const ownerUsername = process.env.ADMIN_USERNAME || envValue("ADMIN_USERNAME") || "admin";
 const ownerPassword = process.env.ADMIN_PASSWORD || envValue("ADMIN_PASSWORD") || "zhanji2026";
+const serviceSecret =
+  process.env.RBAC_TEST_SERVICE_SECRET ||
+  process.env.JEECG_SERVICE_SECRET ||
+  envValue("JEECG_SERVICE_SECRET") ||
+  "";
 
 class CookieJar {
   cookies = new Map();
@@ -41,9 +46,12 @@ class CookieJar {
   }
 }
 
-async function request(path, { jar, json, method = "GET" } = {}) {
+async function request(path, { jar, json, method = "GET", service = false } = {}) {
   const headers = new Headers({ Accept: "application/json" });
   if (jar?.cookies.size) headers.set("Cookie", jar.header());
+  if (service && serviceSecret) {
+    headers.set("X-Lingqiong-Service-Secret", serviceSecret);
+  }
   if (json !== undefined) headers.set("Content-Type", "application/json");
   const response = await fetch(new URL(path, baseUrl), {
     body: json === undefined ? undefined : JSON.stringify(json),
@@ -68,9 +76,9 @@ function assertStatus(response, status, label) {
 }
 
 async function login(jar, username, password) {
-  const response = await request("/_wcu-api/auth/login", {
+  const response = await request("/_wcu-api/admin/login", {
     jar,
-    json: { mode: "admin", password, username },
+    json: { password, username },
     method: "POST"
   });
   assertStatus(response, 200, `${username} login`);
@@ -82,18 +90,17 @@ const suffix = randomUUID().slice(0, 8);
 const viewerUsername = `rbac.viewer.${suffix}`;
 const viewerPassword = `Rbac-${randomBytes(12).toString("base64url")}`;
 let viewerId = "";
-let projectId = "";
+
+function ownerRequest(path, options = {}) {
+  return request(path, {
+    ...options,
+    ...(serviceSecret ? { service: true } : { jar: owner })
+  });
+}
 
 async function cleanup() {
-  if (projectId) {
-    await request(`/_wcu-api/projects/${encodeURIComponent(projectId)}`, {
-      jar: owner,
-      method: "DELETE"
-    }).catch(() => null);
-  }
   if (viewerId) {
-    await request("/_wcu-api/admin/users", {
-      jar: owner,
+    await ownerRequest("/_wcu-api/admin/users", {
       json: { id: viewerId },
       method: "DELETE"
     }).catch(() => null);
@@ -101,19 +108,11 @@ async function cleanup() {
 }
 
 async function main() {
-  await login(owner, ownerUsername, ownerPassword);
+  if (!serviceSecret) {
+    await login(owner, ownerUsername, ownerPassword);
+  }
 
-  const createProjectResponse = await request("/_wcu-api/projects", {
-    jar: owner,
-    json: { name: `RBAC smoke ${suffix}`, type: "权限测试" },
-    method: "POST"
-  });
-  assertStatus(createProjectResponse, 200, "owner creates project");
-  projectId = (await body(createProjectResponse))?.project?.id || "";
-  assert(projectId, "owner project id missing");
-
-  const createViewerResponse = await request("/_wcu-api/admin/users", {
-    jar: owner,
+  const createViewerResponse = await ownerRequest("/_wcu-api/admin/users", {
     json: {
       active: true,
       displayName: "RBAC 只读测试",
@@ -130,43 +129,33 @@ async function main() {
 
   await login(viewer, viewerUsername, viewerPassword);
 
-  const listResponse = await request("/_wcu-api/projects", { jar: viewer });
-  assertStatus(listResponse, 200, "viewer reads project list");
-  const projects = (await body(listResponse))?.projects ?? [];
-  assert(projects.some((project) => project.id === projectId), "viewer cannot read global project");
-
+  const contentResponse = await request("/_wcu-api/admin/content", { jar: viewer });
+  assertStatus(contentResponse, 200, "viewer reads content");
+  const content = await body(contentResponse);
+  assert(Array.isArray(content?.teamMembers), "viewer content response invalid");
   assertStatus(
-    await request(`/_wcu-api/projects/${projectId}`, { jar: viewer }),
-    200,
-    "viewer reads project"
-  );
-  assertStatus(
-    await request(`/_wcu-api/projects/${projectId}`, {
+    await request("/_wcu-api/admin/content", {
       jar: viewer,
-      json: { name: "must-not-change" },
-      method: "PATCH"
+      json: content,
+      method: "PUT"
     }),
     403,
-    "viewer cannot update project"
+    "viewer cannot update content"
   );
   assertStatus(
-    await request(`/_wcu-api/projects/${projectId}/episodes`, {
-      jar: viewer,
-      json: { episodeNumber: 99, title: "must-not-create" },
-      method: "POST"
-    }),
-    403,
-    "viewer cannot write production data"
-  );
-  assertStatus(
-    await request("/_wcu-api/auth/guard", { jar: viewer }),
-    403,
-    "viewer without system.read cannot access system guard"
+    await request("/_wcu-api/projects", { jar: viewer }),
+    401,
+    "admin session cannot cross into creator project session"
   );
   assertStatus(
     await request("/_wcu-api/admin/database", { jar: viewer }),
     403,
     "viewer cannot read database overview"
+  );
+  assertStatus(
+    await request("/_wcu-api/admin/users", { jar: viewer }),
+    403,
+    "viewer cannot manage admin users"
   );
 
   const loginSettingsResponse = await request("/_wcu-api/admin/login-settings", {
@@ -190,24 +179,26 @@ async function main() {
     403,
     "viewer cannot update login settings"
   );
+  const viewerMeResponse = await request("/_wcu-api/admin/me", { jar: viewer });
+  assertStatus(viewerMeResponse, 200, "viewer admin session available");
+  assert((await body(viewerMeResponse))?.authenticated === true, "viewer admin session missing");
 
-  const disableResponse = await request("/_wcu-api/admin/users", {
-    jar: owner,
+  const disableResponse = await ownerRequest("/_wcu-api/admin/users", {
     json: { active: false, id: viewerId },
     method: "PUT"
   });
   assertStatus(disableResponse, 200, "owner disables viewer");
 
-  const disabledMeResponse = await request("/_wcu-api/auth/me", { jar: viewer });
+  const disabledMeResponse = await request("/_wcu-api/admin/me", { jar: viewer });
   assertStatus(disabledMeResponse, 200, "disabled viewer me");
-  assert((await body(disabledMeResponse))?.authenticated === false, "disabled platform cookie still valid");
+  assert((await body(disabledMeResponse))?.authenticated === false, "disabled admin cookie still valid");
   assertStatus(
-    await request("/_wcu-api/projects", { jar: viewer }),
+    await request("/_wcu-api/admin/content", { jar: viewer }),
     401,
-    "disabled viewer project session invalidated"
+    "disabled viewer admin session invalidated"
   );
 
-  console.log(JSON.stringify({ ok: true, tests: 12 }, null, 2));
+  console.log(JSON.stringify({ ok: true, tests: 13 }, null, 2));
 }
 
 try {

@@ -2,8 +2,25 @@
 
 import { Blob } from "node:buffer";
 import { randomUUID } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
 
-const baseUrl = (process.env.KNOWLEDGE_TEST_BASE_URL || "http://127.0.0.1").replace(
+function envFileValue(key) {
+  for (const filename of [".env.local", ".env", ".env.baota"]) {
+    if (!existsSync(filename)) continue;
+    const match = readFileSync(filename, "utf8")
+      .split(/\r?\n/u)
+      .map((line) => line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/u))
+      .find((entry) => entry?.[1] === key);
+    if (match?.[2]) return match[2].trim().replace(/^(['"])(.*)\1$/u, "$2");
+  }
+  return undefined;
+}
+
+const baseUrl = (
+  process.env.KNOWLEDGE_TEST_BASE_URL ||
+  process.env.BASE_URL ||
+  "http://localhost"
+).replace(
   /\/+$/u,
   ""
 );
@@ -12,6 +29,11 @@ const password =
   process.env.KNOWLEDGE_TEST_ADMIN_PASSWORD ||
   process.env.ADMIN_PASSWORD ||
   "zhanji2026";
+const serviceSecret =
+  process.env.KNOWLEDGE_TEST_SERVICE_SECRET ||
+  process.env.JEECG_SERVICE_SECRET ||
+  envFileValue("JEECG_SERVICE_SECRET") ||
+  "";
 const apiRoot = `${baseUrl}/_wcu-api/knowledge`;
 const checks = [];
 const cleanupTasks = [];
@@ -103,6 +125,10 @@ async function request(url, options = {}) {
         ? "*/*"
         : "application/json, text/plain;q=0.9, */*;q=0.8"
     );
+  }
+
+  if (serviceSecret) {
+    headers.set("x-lingqiong-service-secret", serviceSecret);
   }
 
   const sessionCookies = cookieHeader();
@@ -217,7 +243,12 @@ function scopedRoot(spaceId, tableId) {
 }
 
 async function runScenario() {
-  expect(await request(`${baseUrl}/knowledge`), 200, "知识工作台页面");
+  const workbench = await request(`${baseUrl}/knowledge`);
+  if (serviceSecret) {
+    expect(workbench, 307, "知识工作台前台登录保护");
+  } else {
+    expect(workbench, 200, "知识工作台页面");
+  }
 
   const bootstrap = expect(await request(apiRoot), 200, "知识库启动接口");
   verify(
@@ -1050,11 +1081,13 @@ async function runScenario() {
 }
 
 async function main() {
-  const login = await request(`${baseUrl}/_wcu-api/auth/login`, {
-    json: { mode: "admin", password, username },
-    method: "POST"
-  });
-  expect(login, 200, "管理员登录");
+  if (!serviceSecret) {
+    const login = await request(`${baseUrl}/_wcu-api/auth/login`, {
+      json: { mode: "admin", password, username },
+      method: "POST"
+    });
+    expect(login, 200, "管理员登录");
+  }
 
   let scenarioError = null;
   let cleanupErrors = [];

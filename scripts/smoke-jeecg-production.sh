@@ -9,13 +9,38 @@ REDIS_CONTAINER="${JEECG_SMOKE_REDIS_CONTAINER:-lingqiong-jeecg-redis}"
 WORK="${JEECG_SMOKE_WORK_DIR:-$(mktemp -d)}"
 PROJECT_RESTORE_ACTIVE=0
 PROJECT_RESTORE_ID=""
+EPISODE_CLEANUP_ACTIVE=0
+EPISODE_CLEANUP_ID=""
+EPISODE_CLEANUP_MARKER=""
 SERVICE_SECRET=""
 TOKEN=""
 mkdir -p "$WORK"
 
 cleanup() {
   local status=$?
+  local cleanup_id="$EPISODE_CLEANUP_ID"
   set +e
+  if [[ "$EPISODE_CLEANUP_ACTIVE" == "1" && -z "$cleanup_id" && -n "$EPISODE_CLEANUP_MARKER" && -n "$TOKEN" ]]; then
+    curl -fsS -G "${auth[@]}" \
+      --data-urlencode "pageNo=1" \
+      --data-urlencode "pageSize=20" \
+      --data-urlencode "keyword=$EPISODE_CLEANUP_MARKER" \
+      "$BASE/lingqiong/data/episodes/list" > "$WORK/episode-cleanup-list.json"
+    cleanup_id="$(python3 - "$WORK/episode-cleanup-list.json" "$EPISODE_CLEANUP_MARKER" <<'PY'
+import json
+import sys
+with open(sys.argv[1], encoding='utf-8') as handle:
+    records = (json.load(handle).get('result') or {}).get('records') or []
+marker = sys.argv[2]
+print(next((str(record.get('id', '')) for record in records if record.get('title') == marker), ''))
+PY
+)"
+  fi
+  if [[ "$EPISODE_CLEANUP_ACTIVE" == "1" && -n "$cleanup_id" && -n "$TOKEN" ]]; then
+    curl -fsS -X DELETE "${auth[@]}" \
+      "$BASE/lingqiong/data/episodes/delete?id=$cleanup_id" >/dev/null || \
+      echo "警告：联动回归临时剧集自动清理失败：$cleanup_id" >&2
+  fi
   if [[ "$PROJECT_RESTORE_ACTIVE" == "1" && -n "$PROJECT_RESTORE_ID" && -n "$TOKEN" ]]; then
     curl -fsS -X PUT -H 'Content-Type: application/json' \
       -H "X-Access-Token: $TOKEN" --data-binary @"$WORK/project-restore.json" \
@@ -187,6 +212,117 @@ with (root / 'project-platform-restored.json').open(encoding='utf-8') as handle:
 for key in ('id', 'name', 'type', 'aspectRatio', 'goal', 'style'):
     assert restored[key] == baseline[key]
 PY
+
+    EPISODE_CLEANUP_MARKER="LQ_LINKAGE_$(date +%s)_$RANDOM"
+    curl -fsS -H "X-Lingqiong-Service-Secret: $SERVICE_SECRET" \
+      "$PLATFORM_BASE/projects/$PROJECT_ID/episodes" > "$WORK/episodes-platform-before.json"
+    PROJECT_ID="$PROJECT_ID" EPISODE_MARKER="$EPISODE_CLEANUP_MARKER" \
+      python3 - "$WORK" <<'PY'
+import json
+import os
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+with (root / 'episodes-platform-before.json').open(encoding='utf-8') as handle:
+    episodes = json.load(handle).get('episodes') or []
+used = {int(episode.get('episodeNumber') or 0) for episode in episodes}
+episode_number = next(number for number in range(100000, 0, -1) if number not in used)
+payload = {
+    'project_id': os.environ['PROJECT_ID'],
+    'episode_number': episode_number,
+    'title': os.environ['EPISODE_MARKER'],
+    'summary': '后台数据中心新增，官网生产流程即时读取。',
+    'script': '联动回归临时剧本。',
+    'status': 'draft',
+    'sort_order': episode_number,
+}
+with (root / 'episode-create.json').open('w', encoding='utf-8') as handle:
+    json.dump(payload, handle, ensure_ascii=False)
+PY
+
+    curl -fsS -X POST -H 'Content-Type: application/json' \
+      -H "X-Access-Token: $TOKEN" --data-binary @"$WORK/episode-create.json" \
+      "$BASE/lingqiong/data/episodes/save" > "$WORK/episode-create-result.json"
+    python3 - "$WORK/episode-create-result.json" <<'PY'
+import json
+import sys
+with open(sys.argv[1], encoding='utf-8') as handle:
+    assert json.load(handle).get('success') is True
+PY
+    EPISODE_CLEANUP_ACTIVE=1
+
+    curl -fsS -H "X-Lingqiong-Service-Secret: $SERVICE_SECRET" \
+      "$PLATFORM_BASE/projects/$PROJECT_ID/episodes" > "$WORK/episodes-platform-created.json"
+    EPISODE_CLEANUP_ID="$(python3 - "$WORK/episodes-platform-created.json" "$EPISODE_CLEANUP_MARKER" <<'PY'
+import json
+import sys
+with open(sys.argv[1], encoding='utf-8') as handle:
+    episodes = json.load(handle).get('episodes') or []
+marker = sys.argv[2]
+episode = next(item for item in episodes if item.get('title') == marker)
+assert episode.get('summary') == '后台数据中心新增，官网生产流程即时读取。'
+print(episode['id'])
+PY
+)"
+    [[ -n "$EPISODE_CLEANUP_ID" ]] || { echo "官网未读取到后台新增的剧集"; exit 1; }
+
+    EPISODE_ID="$EPISODE_CLEANUP_ID" EPISODE_MARKER="$EPISODE_CLEANUP_MARKER" \
+      python3 - "$WORK" <<'PY'
+import json
+import os
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+with (root / 'episode-create.json').open(encoding='utf-8') as handle:
+    payload = json.load(handle)
+payload['id'] = os.environ['EPISODE_ID']
+payload['title'] = os.environ['EPISODE_MARKER'] + '_UPDATED'
+payload['summary'] = '后台已更新，官网详情需即时一致。'
+with (root / 'episode-update.json').open('w', encoding='utf-8') as handle:
+    json.dump(payload, handle, ensure_ascii=False)
+PY
+    curl -fsS -X POST -H 'Content-Type: application/json' \
+      -H "X-Access-Token: $TOKEN" --data-binary @"$WORK/episode-update.json" \
+      "$BASE/lingqiong/data/episodes/save" > "$WORK/episode-update-result.json"
+    python3 - "$WORK/episode-update-result.json" <<'PY'
+import json
+import sys
+with open(sys.argv[1], encoding='utf-8') as handle:
+    assert json.load(handle).get('success') is True
+PY
+
+    curl -fsS -H "X-Lingqiong-Service-Secret: $SERVICE_SECRET" \
+      "$PLATFORM_BASE/projects/$PROJECT_ID/episodes/$EPISODE_CLEANUP_ID" \
+      > "$WORK/episode-platform-updated.json"
+    python3 - "$WORK/episode-platform-updated.json" "${EPISODE_CLEANUP_MARKER}_UPDATED" <<'PY'
+import json
+import sys
+with open(sys.argv[1], encoding='utf-8') as handle:
+    episode = json.load(handle)['episode']
+assert episode['title'] == sys.argv[2]
+assert episode['summary'] == '后台已更新，官网详情需即时一致。'
+PY
+
+    curl -fsS -X DELETE "${auth[@]}" \
+      "$BASE/lingqiong/data/episodes/delete?id=$EPISODE_CLEANUP_ID" \
+      > "$WORK/episode-delete-result.json"
+    python3 - "$WORK/episode-delete-result.json" <<'PY'
+import json
+import sys
+with open(sys.argv[1], encoding='utf-8') as handle:
+    assert json.load(handle).get('success') is True
+PY
+    EPISODE_CLEANUP_ACTIVE=0
+
+    HTTP_STATUS="$(curl -sS -o "$WORK/episode-platform-deleted.json" -w '%{http_code}' \
+      -H "X-Lingqiong-Service-Secret: $SERVICE_SECRET" \
+      "$PLATFORM_BASE/projects/$PROJECT_ID/episodes/$EPISODE_CLEANUP_ID")"
+    [[ "$HTTP_STATUS" == "404" ]] || {
+      echo "后台删除剧集后，官网仍返回 HTTP $HTTP_STATUS"
+      exit 1
+    }
   fi
 fi
 
