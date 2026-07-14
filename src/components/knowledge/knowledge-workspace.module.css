@@ -620,3 +620,427 @@
   .fieldSettings { grid-template-columns: 1fr; }
   .fieldSettings > aside { display: none; }
 }
+
+/* Lingqiong product skin: retain the Feishu interaction density while matching the official site. */
+.workspace {
+  --blue: #58e4e9;
+  --blue-soft: rgb(88 228 233 / 12%);
+  --ink: #eaf8f9;
+  --muted: #91a9af;
+  --line: rgb(140 211 215 / 16%);
+  --panel: #0c1720;
+  color-scheme: dark;
+  background:
+    radial-gradient(circle at 80% 8%, rgb(88 228 233 / 8%), transparent 30%),
+    #05090d;
+  color: var(--ink);
+}
+
+.desktopShell,
+.contentShell,
+.documentViewport,
+.baseWorkspace,
+.baseContent,
+.dataViewport {
+  background: #070c11;
+}
+
+.globalRail {
+  border-color: var(--line);
+  background: linear-gradient(180deg, #07141b, #050a0e 72%);
+}
+
+.railBrand {
+  background: linear-gradient(145deg, #63f0f2, #1e7f94);
+  color: #031014;
+  box-shadow: 0 0 24px rgb(88 228 233 / 24%);
+}
+
+.railButton { color: #789198; }
+.railButton:hover,
+.railButtonActive {
+  background: rgb(88 228 233 / 12%);
+  color: #75f1f2;
+  box-shadow: inset 0 0 0 1px rgb(88 228 233 / 22%);
+}
+
+.avatar,
+.topAvatar,
+.miniAvatar {
+  background: linear-gradient(145deg, #174653, #0e2733);
+  color: #a9f8f7;
+}
+
+.wikiSidebar,
+.baseNavigator,
+.fieldSettings > aside,
+.historyPanel > aside {
+  border-color: var(--line);
+  background: linear-gradient(180deg, #0a151d, #071017);
+}
+
+.sidebarBrand span,
+.directoryHeader,
+.sidebarFooter p,
+.sidebarEmpty,
+.baseNavSection,
+.baseNavItem small,
+.modified,
+.panelHint,
+.drawerEmpty {
+  color: #6f878e;
+}
+
+.sidebarBrand > button:hover,
+.directoryHeader button:hover,
+.spaceSwitcher button:hover,
+.sidebarHome:hover,
+.pageRow:hover,
+.pageRowActions button:hover,
+.baseTitlebar button:hover,
+.baseToolbar button:hover,
+.recordDrawer header button:hover,
+.fieldList > div > button:hover,
+.fieldSettings > aside > button:hover {
+  background: rgb(88 228 233 / 8%);
+  color: #a9f8f7;
+}
+
+.spaceSwitcher,
+.treeMenu,
+.fieldMenu,
+.searchPopover,
+.selectionToolbar,
+.slashMenu,
+.createDialog {
+  border-color: var(--line);
+  background: #0d1821;
+  box-shadow: 0 18px 55px rgb(0 0 0 / 48%);
+}
+
+.spaceSwitcher select,
+.sidebarSearch input,
+.recordSearch input,
+.panelSearch input,
+.cellInput,
+.cellSelect {
+  color: var(--ink);
+}
+
+.sidebarSearch,
+.recordSearch,
+.panelSearch {
+  background: #101d26;
+  color: #718990;
+}
+
+.sidebarSearch:focus-within,
+.recordSearch:focus-within,
+.panelSearch:focus-within {
+  border-color: rgb(88 228 233 / 46%);
+  background: #0b161e;
+  box-shadow: 0 0 0 2px rgb(88 228 233 / 10%);
+}
+
+.pageRow,
+.sidebarHome,
+.tableTree > button,
+.baseNavItem { color: #9cb0b5; }
+
+.pageRowActive,
+.treeItemActive,
+.baseNavItemActive,
+.baseNavItem:hover,
+.historyPanel > aside button:hover,
+.historyPanel > aside .historyActive {
+  background: rgb(88 228 233 / 12%) !important;
+  color: #73eff0 !important;
+}
+
+.sidebarFooter,
+.topbar,
+.baseTitlebar,
+.viewTabs,
+.baseToolbar,
+.recordDrawer > header,
+.recordDrawer > footer,
+.recordTabs,
+.createDialog > footer {
+  border-color: var(--line);
+}
+
+.topbar {
+  background: rgb(6 12 17 / 90%);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 18%);
+}
+
+.breadcrumbs,
+.topbarActions > button,
+.baseTitlebar button,
+.baseToolbar button { color: #91a6ac; }
+.breadcrumbs strong { color: var(--ink); }
+.topbarActions .permissionButton { border-color: rgb(88 228 233 / 22%); color: #9ddde0; }
+.topbarActions .shareButton,
+.baseTitlebar button:first-child,
+.primaryAction {
+  background: linear-gradient(135deg, #62eef0, #37bac7);
+  color: #031115 !important;
+  box-shadow: 0 8px 24px rgb(55 186 199 / 18%);
+}
+.topbarActions .shareButton:hover,
+.primaryAction:hover { background: linear-gradient(135deg, #86f8f7, #4bd2dc); color: #031115 !important; }
+
+.documentOutline,
+.documentOutline button,
+.authorLine { color: #718990; }
+.documentOutline button { border-color: var(--line); }
+.documentOutline button:hover { border-color: #58e4e9; color: #69e9eb; }
+.documentMeta > span,
+.blockControls button:hover,
+.documentMeta button:hover,
+.appendBlock:hover { background: rgb(88 228 233 / 8%); }
+.documentTitle,
+.blockInput { color: #e7f5f6; }
+.documentTitle::placeholder,
+.blockInput::placeholder { color: #496068; }
+.block_quote .blockInputWrap { border-color: #3f7980; }
+.block_quote .blockInput { color: #a4b9bd; }
+.block_code .blockInputWrap,
+.block_callout .blockInputWrap {
+  border-color: var(--line);
+  background: #0b1720;
+}
+.block_callout .blockInputWrap { background: rgb(88 228 233 / 7%); }
+.dividerBlock hr { border-color: var(--line); }
+
+.baseNavTitle > svg,
+.metricCard > div svg,
+.homeHero span,
+.activityList article > span { color: #58e4e9; }
+.baseNavDivider { background: var(--line); }
+.baseTitlebar,
+.viewTabs,
+.baseToolbar { background: #080f15; }
+.viewTabs { overflow: visible; }
+.viewTabs > button { color: #8fa4aa; }
+.viewTabItem {
+  position: relative;
+  display: flex;
+  height: 40px;
+  flex: 0 0 auto;
+  align-items: center;
+  border-radius: 6px 6px 0 0;
+}
+.viewTabItem > button {
+  position: static;
+  height: 40px;
+  padding: 0 7px;
+}
+.viewTabItem > button:first-child { gap: 6px; }
+.viewTabItem > button:nth-child(2) { width: 26px; padding: 0; opacity: 0; }
+.viewTabItem:hover > button:nth-child(2) { opacity: 1; }
+.viewTabActive { color: #73eff0; background: rgb(88 228 233 / 8%); }
+.viewTabActive::after { position: absolute; right: 8px; bottom: 0; left: 8px; height: 2px; background: #58e4e9; content: ""; }
+.defaultViewMark { padding: 1px 4px; border-radius: 4px; background: rgb(88 228 233 / 12%); color: #70e9eb; font-size: 8px; }
+.viewMenu {
+  position: absolute;
+  top: 38px;
+  right: 0;
+  z-index: 60;
+  width: 156px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #101b23;
+  box-shadow: 0 16px 42px rgb(0 0 0 / 45%);
+}
+.viewMenu button { display: flex; width: 100%; height: 32px; align-items: center; gap: 7px; padding: 0 8px; border-radius: 5px; color: #b5c6c9; }
+.viewMenu button:hover { background: rgb(88 228 233 / 9%); }
+.viewMenu button:disabled { opacity: .4; cursor: not-allowed; }
+
+.baseToolbar .addRecordButton,
+.baseToolbar .toolbarActive {
+  background: rgb(88 228 233 / 12%);
+  color: #74eeef;
+}
+
+.baseModulePage { min-height: calc(100vh - 56px); padding: 28px clamp(22px, 4vw, 52px) 64px; background: radial-gradient(circle at 88% 0, rgb(88 228 233 / 7%), transparent 30%), #070d12; }
+.baseModulePage > header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding-bottom: 22px; border-bottom: 1px solid var(--line); }
+.baseModulePage > header span { color: #58e4e9; font-size: 9px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; }
+.baseModulePage > header h1 { margin: 7px 0 0; font-size: 24px; }
+.baseModulePage > header p { margin: 7px 0 0; color: #718a91; font-size: 10px; }
+.baseModulePage > header button { display: flex; height: 34px; align-items: center; gap: 6px; padding: 0 11px; border: 1px solid var(--line); border-radius: 7px; background: #0d1921; color: #a9bcc0; font-size: 10px; cursor: pointer; }
+.dashboardMetricGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 20px; }
+.dashboardMetricGrid article { padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: #0b151d; }
+.dashboardMetricGrid span,
+.dashboardMetricGrid small { display: block; color: #718a91; font-size: 9px; }
+.dashboardMetricGrid strong { display: block; margin: 10px 0 4px; font-size: 26px; }
+.dashboardChart { margin-top: 16px; padding: 20px; border: 1px solid var(--line); border-radius: 12px; background: #0b151d; }
+.dashboardChart > header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.dashboardChart > header span,
+.dashboardChart > header strong { display: block; }
+.dashboardChart > header span,
+.dashboardChart > header small { color: #718a91; font-size: 9px; }
+.dashboardChart > header strong { margin-top: 4px; font-size: 14px; }
+.dashboardChart > div { display: grid; grid-template-columns: minmax(90px, 180px) 1fr 36px; align-items: center; gap: 10px; margin-top: 10px; font-size: 9px; }
+.dashboardChart > div > div { height: 8px; overflow: hidden; border-radius: 8px; background: #13232d; }
+.dashboardChart > div i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #2cb6c1, #6ef0ef); }
+.automationWorkspace { display: grid; grid-template-columns: minmax(220px, .75fr) minmax(300px, 1.25fr) minmax(220px, .8fr); gap: 14px; margin-top: 20px; }
+.automationWorkspace > section { align-content: start; min-height: 250px; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: #0b151d; }
+
+@media (max-width: 1050px) {
+  .dashboardMetricGrid { grid-template-columns: repeat(2, 1fr); }
+  .automationWorkspace { grid-template-columns: 1fr 1.4fr; }
+  .automationWorkspace > section:last-child { grid-column: 1 / -1; }
+}
+
+.dataGrid { color: #dcebed; }
+.dataGrid th,
+.dataGrid td,
+.gridAddRecord,
+.ganttView > header,
+.ganttView > button,
+.ganttView > header > div,
+.ganttView > button > strong,
+.ganttView > button > div {
+  border-color: var(--line);
+}
+.dataGrid th { background: #101a22; color: #91a7ad; }
+.dataGrid td,
+.gridAddRecord,
+.ganttView > button { background: #091218; }
+.dataGrid tr:hover td,
+.gridAddRecord:hover,
+.ganttView > button:hover { background: #0c1b23; }
+.ganttView > header { background: #101a22; color: #91a7ad; }
+.ganttView > button > div { background-image: linear-gradient(90deg, rgb(139 196 200 / 10%) 1px, transparent 1px); }
+.ganttView > button > div span { background: linear-gradient(90deg, #42cbd3, #68edf0); }
+
+.kanbanBoard,
+.galleryGrid,
+.calendarView,
+.formView { background: #071016; }
+.kanbanCard,
+.galleryCard,
+.formView form,
+.calendarGrid section,
+.commentList article,
+.trashItem,
+.choiceGrid button,
+.metricCard,
+.homeColumns > section,
+.spaceCards button {
+  border-color: var(--line);
+  background: #0b151d;
+}
+.kanbanCard:hover,
+.galleryCard:hover,
+.spaceCards button:hover { border-color: rgb(88 228 233 / 42%); background: #0d1c24; }
+.galleryCard > div { background: linear-gradient(135deg, #102b35, #10211f); color: #5fe6e8; }
+
+.calendarView { display: block; padding: 0; }
+.calendarToolbar { display: flex; height: 48px; align-items: center; justify-content: space-between; padding: 0 14px; border-bottom: 1px solid var(--line); background: #0b151d; }
+.calendarToolbar > div { display: flex; align-items: center; gap: 6px; }
+.calendarToolbar button { display: grid; min-width: 30px; height: 30px; place-items: center; padding: 0 9px; border: 1px solid var(--line); border-radius: 6px; background: #0e1a22; color: #a9bcc0; cursor: pointer; }
+.calendarToolbar button:hover { border-color: rgb(88 228 233 / 36%); color: #72edee; }
+.calendarToolbar strong { margin-left: 8px; font-size: 12px; }
+.calendarToolbar select { height: 30px; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px; background: #0e1a22; color: #b8c8cb; }
+.calendarWeekdays { display: grid; grid-template-columns: repeat(7, 1fr); border-bottom: 1px solid var(--line); background: #0e1921; }
+.calendarWeekdays span { padding: 8px; color: #718a91; font-size: 9px; text-align: center; }
+.calendarGrid { display: grid; grid-template-columns: repeat(7, minmax(120px, 1fr)); min-width: 840px; }
+.calendarGrid section { min-height: 112px; border-width: 0 1px 1px 0; border-style: solid; border-radius: 0; }
+.calendarGrid section > header { display: flex; align-items: center; justify-content: space-between; padding: 7px 8px 4px; border: 0; background: transparent; }
+.calendarGrid section > header strong { display: grid; width: 23px; height: 23px; place-items: center; border-radius: 50%; font-size: 10px; }
+.calendarGrid section > header span { color: #60777e; font-size: 8px; }
+.calendarGrid section > div { display: grid; gap: 3px; padding: 0 5px 6px; }
+.calendarGrid section > div button,
+.unscheduledRecords button { overflow: hidden; padding: 4px 6px; border: 0; border-left: 2px solid #58e4e9; border-radius: 3px; background: rgb(88 228 233 / 10%); color: #b8dfe1; font-size: 8px; text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.calendarGrid section > div button:hover { background: rgb(88 228 233 / 18%); }
+.calendarGrid section > div small { color: #6f888e; font-size: 8px; }
+.calendarMuted { opacity: .42; }
+.calendarToday > header strong { background: #58e4e9; color: #031115; }
+.calendarDayGrid { grid-template-columns: minmax(300px, 1fr); min-width: 0; padding: 16px; }
+.calendarDayGrid section { min-height: 460px; border: 1px solid var(--line); border-radius: 9px; }
+.unscheduledRecords { display: flex; align-items: center; gap: 6px; padding: 10px 14px; border-top: 1px solid var(--line); background: #0a141b; }
+.unscheduledRecords strong { margin-right: 6px; color: #81989e; font-size: 9px; }
+
+.homeViewport {
+  background:
+    radial-gradient(circle at 14% 8%, rgb(38 177 190 / 12%), transparent 28%),
+    radial-gradient(circle at 90% 48%, rgb(203 104 41 / 8%), transparent 24%),
+    #060b0f;
+}
+.homeHero {
+  border-color: rgb(88 228 233 / 20%);
+  background: linear-gradient(125deg, rgb(11 23 31 / 96%), rgb(13 39 47 / 90%) 68%, rgb(31 28 21 / 86%));
+  box-shadow: 0 18px 70px rgb(0 0 0 / 28%);
+}
+.homeHero p,
+.homeColumns header span,
+.recentList small,
+.spaceCards small { color: #789096; }
+.homeHero button { border-color: var(--line); background: #0d1921; }
+.metricCard p { color: #eaf8f9; }
+.recentList button:hover { background: rgb(88 228 233 / 7%); }
+.recentList button > span { background: rgb(88 228 233 / 10%); color: #58e4e9; }
+
+.recordDrawer,
+.modalBackdrop,
+.sidePanelBackdrop { background: rgb(2 6 9 / 74%); }
+.recordDrawer,
+.sidePanel,
+.createDialog { color: #e5f3f4; }
+.recordDrawer { border-color: var(--line); background: #081118; box-shadow: -18px 0 60px rgb(0 0 0 / 45%); }
+.recordDrawer > header { background: #0b151d; }
+.drawerSync { border-color: rgb(88 228 233 / 22%); background: rgb(88 228 233 / 8%); color: #75dfe1; }
+.recordFields label > div,
+.commentComposer textarea,
+.memberInvite,
+.noticeBox,
+.uploadZone,
+.attachmentList article {
+  border-color: var(--line);
+  background: #0c1720;
+}
+.recordTabs .recordTabActive { color: #68e9eb; }
+.commentComposer textarea { color: #dfecee; }
+.commentComposer textarea:focus { border-color: rgb(88 228 233 / 45%); box-shadow: 0 0 0 2px rgb(88 228 233 / 10%); }
+
+.workspace :where(input:not([type="checkbox"]), select, textarea) {
+  border-color: var(--line);
+  background-color: #0a141c;
+  color: #dfedef;
+}
+.workspace :where(input, textarea)::placeholder { color: #4e666e; }
+.cellInput,
+.cellSelect { background: transparent !important; }
+
+.ruleHeader { display: flex; align-items: center; justify-content: space-between; color: #8ea4a9; font-size: 10px; }
+.ruleHeader select { height: 30px; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px; }
+.ruleList { display: grid; gap: 8px; }
+.ruleRow,
+.ruleRowSimple { display: grid; align-items: center; gap: 6px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: #0b161e; }
+.ruleRow { grid-template-columns: minmax(110px, 1fr) minmax(90px, .8fr) minmax(110px, 1fr) 28px; }
+.ruleRowSimple { grid-template-columns: 24px minmax(150px, 1fr) minmax(90px, .7fr) 28px; }
+.ruleRowSimple > span { display: grid; width: 22px; height: 22px; place-items: center; border-radius: 50%; background: rgb(88 228 233 / 10%); color: #69dfe1; font-size: 9px; }
+.ruleRow select,
+.ruleRow input,
+.ruleRowSimple select { min-width: 0; height: 32px; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px; }
+.ruleRow > button,
+.ruleRowSimple > button { display: grid; width: 28px; height: 28px; place-items: center; border: 0; border-radius: 5px; background: transparent; color: #6f858b; cursor: pointer; }
+.ruleRow > button:hover,
+.ruleRowSimple > button:hover { background: rgb(240 98 98 / 10%); color: #f08c8c; }
+.rulePlaceholder { color: #60777e; font-size: 9px; text-align: center; }
+.addRuleButton { display: flex; height: 34px; align-items: center; justify-content: center; gap: 6px; border: 1px dashed rgb(88 228 233 / 30%) !important; background: rgb(88 228 233 / 6%) !important; color: #6de4e6 !important; }
+.checkboxLabel { display: flex !important; flex-direction: row !important; align-items: center; gap: 8px; }
+.checkboxLabel input { width: 16px; height: 16px; accent-color: #58e4e9; }
+
+@media (max-width: 820px) {
+  .ruleRow { grid-template-columns: 1fr 1fr 28px; }
+  .ruleRow input,
+  .rulePlaceholder { grid-column: 1 / 3; }
+  .ruleRow > button { grid-column: 3; grid-row: 1; }
+  .ruleRowSimple { grid-template-columns: 24px 1fr 28px; }
+  .ruleRowSimple select:nth-of-type(2) { grid-column: 2; }
+  .calendarGrid { min-width: 700px; }
+}

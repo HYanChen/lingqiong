@@ -26,6 +26,7 @@ import {
   Cloud,
   Code2,
   Columns3,
+  Copy,
   Download,
   Database,
   Eye,
@@ -332,6 +333,7 @@ type BootstrapResponse = {
 
 type CreateKind = "field" | "page" | "space" | "table" | "view";
 type WorkspaceMode = "home" | "page" | "table";
+type BaseSection = "automation" | "dashboard" | "table";
 
 const apiRoot = "/_wcu-api/knowledge";
 
@@ -499,34 +501,103 @@ function fieldOptions(field: KnowledgeField) {
 }
 
 type ViewFilterCondition = {
-  fieldId?: string;
-  operator?: string;
-  value?: string;
+  fieldId: string;
+  operator: string;
+  value: string;
 };
 
-function firstViewFilterCondition(filter: Record<string, unknown>): ViewFilterCondition {
-  const conditions = Array.isArray(filter.conditions) ? filter.conditions : [];
-  const first = conditions.find(
-    (condition) => condition && typeof condition === "object" && !Array.isArray(condition)
-  );
-  if (first) {
-    const condition = first as Record<string, unknown>;
-    return {
-      fieldId: typeof condition.fieldId === "string" ? condition.fieldId : undefined,
-      operator: typeof condition.operator === "string" ? condition.operator : undefined,
-      value:
-        condition.value === null || condition.value === undefined
-          ? undefined
-          : String(condition.value)
-    };
-  }
+type ViewSortRule = {
+  direction: "asc" | "desc";
+  fieldId: string;
+};
 
-  // Keep old views readable while all new writes use the normalized condition list.
-  return {
-    fieldId: typeof filter.fieldId === "string" ? filter.fieldId : undefined,
-    operator: typeof filter.operator === "string" ? filter.operator : undefined,
-    value: filter.value === null || filter.value === undefined ? undefined : String(filter.value)
-  };
+type ViewGroupRule = {
+  fieldId: string;
+};
+
+const filterOperatorLabels: Record<string, string> = {
+  after: "晚于",
+  before: "早于",
+  contains: "包含",
+  equals: "等于",
+  greater: "大于",
+  is_empty: "为空",
+  is_not_empty: "不为空",
+  less: "小于",
+  not_contains: "不包含",
+  not_equals: "不等于"
+};
+
+function viewFilterConditions(filter: Record<string, unknown>): ViewFilterCondition[] {
+  const conditions = Array.isArray(filter.conditions) ? filter.conditions : [];
+  const normalized = conditions.flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+    const condition = item as Record<string, unknown>;
+    if (typeof condition.fieldId !== "string" || !condition.fieldId) return [];
+    return [{
+      fieldId: condition.fieldId,
+      operator: typeof condition.operator === "string" ? condition.operator : "contains",
+      value: condition.value === null || condition.value === undefined ? "" : String(condition.value)
+    }];
+  });
+  if (normalized.length) return normalized;
+  if (typeof filter.fieldId !== "string" || !filter.fieldId) return [];
+  return [{
+    fieldId: filter.fieldId,
+    operator: typeof filter.operator === "string" ? filter.operator : "contains",
+    value: filter.value === null || filter.value === undefined ? "" : String(filter.value)
+  }];
+}
+
+function viewSortRules(sort: unknown[]): ViewSortRule[] {
+  return sort.flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+    const rule = item as Record<string, unknown>;
+    if (typeof rule.fieldId !== "string" || !rule.fieldId) return [];
+    return [{ fieldId: rule.fieldId, direction: rule.direction === "desc" ? "desc" as const : "asc" as const }];
+  });
+}
+
+function viewGroupRules(group: Record<string, unknown>): ViewGroupRule[] {
+  const rules = Array.isArray(group.rules) ? group.rules : [];
+  const normalized = rules.flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+    const rule = item as Record<string, unknown>;
+    return typeof rule.fieldId === "string" && rule.fieldId ? [{ fieldId: rule.fieldId }] : [];
+  });
+  if (normalized.length) return normalized;
+  return typeof group.fieldId === "string" && group.fieldId ? [{ fieldId: group.fieldId }] : [];
+}
+
+function matchesFilter(value: unknown, condition: ViewFilterCondition) {
+  const actual = stringifyValue(value);
+  const left = actual.toLocaleLowerCase("zh-CN");
+  const right = condition.value.toLocaleLowerCase("zh-CN");
+  if (condition.operator === "is_empty") return !actual.trim();
+  if (condition.operator === "is_not_empty") return Boolean(actual.trim());
+  if (condition.operator === "equals") return left === right;
+  if (condition.operator === "not_equals") return left !== right;
+  if (condition.operator === "not_contains") return !left.includes(right);
+  if (condition.operator === "greater" || condition.operator === "less") {
+    const actualNumber = Number(actual);
+    const targetNumber = Number(condition.value);
+    if (!Number.isFinite(actualNumber) || !Number.isFinite(targetNumber)) return false;
+    return condition.operator === "greater" ? actualNumber > targetNumber : actualNumber < targetNumber;
+  }
+  if (condition.operator === "after" || condition.operator === "before") {
+    const actualDate = new Date(actual).getTime();
+    const targetDate = new Date(condition.value).getTime();
+    if (!Number.isFinite(actualDate) || !Number.isFinite(targetDate)) return false;
+    return condition.operator === "after" ? actualDate > targetDate : actualDate < targetDate;
+  }
+  return left.includes(right);
+}
+
+function dateKey(value: Date) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 async function knowledgeRequest<T>(path = "", init?: RequestInit): Promise<T> {
@@ -608,9 +679,9 @@ export function KnowledgeWorkspace() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [recordSearch, setRecordSearch] = useState("");
   const [fieldSearch, setFieldSearch] = useState("");
-  const [sortFieldId, setSortFieldId] = useState("");
-  const [sortDescending, setSortDescending] = useState(false);
+  const [sortRules, setSortRules] = useState<ViewSortRule[]>([]);
   const [displayMode, setDisplayMode] = useState<DisplayMode>("grid");
+  const [baseSection, setBaseSection] = useState<BaseSection>("table");
   const [pageTitle, setPageTitle] = useState("");
   const [documentBlocks, setDocumentBlocks] = useState<DocumentBlock[]>([newBlock()]);
   const [lastSavedDocument, setLastSavedDocument] = useState("");
@@ -640,14 +711,22 @@ export function KnowledgeWorkspace() {
   const [recordAttachments, setRecordAttachments] = useState<KnowledgeAttachment[]>([]);
   const [trashItems, setTrashItems] = useState<KnowledgeTrashItem[]>([]);
   const [formValues, setFormValues] = useState<Record<string, string | boolean>>({});
-  const [filterFieldId, setFilterFieldId] = useState("");
-  const [filterValue, setFilterValue] = useState("");
-  const [groupFieldId, setGroupFieldId] = useState("");
+  const [filterConjunction, setFilterConjunction] = useState<"and" | "or">("and");
+  const [filterConditions, setFilterConditions] = useState<ViewFilterCondition[]>([]);
+  const [groupRules, setGroupRules] = useState<ViewGroupRule[]>([]);
   const [createKind, setCreateKind] = useState<CreateKind | null>(null);
   const [createTitle, setCreateTitle] = useState("");
   const [createDescription, setCreateDescription] = useState("");
   const [createFieldType, setCreateFieldType] = useState<FieldType>("text");
+  const [createFieldOptions, setCreateFieldOptions] = useState("");
+  const [createFieldFormula, setCreateFieldFormula] = useState("");
+  const [createFieldRequired, setCreateFieldRequired] = useState(false);
+  const [createFieldRelationTableId, setCreateFieldRelationTableId] = useState("");
   const [createViewType, setCreateViewType] = useState<ViewType>("grid");
+  const [editingFieldId, setEditingFieldId] = useState("");
+  const [viewActionId, setViewActionId] = useState("");
+  const [calendarScale, setCalendarScale] = useState<"day" | "month" | "week">("month");
+  const [calendarAnchor, setCalendarAnchor] = useState(() => dateKey(new Date()));
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const loadedPageId = useRef("");
   const selectedViewIdRef = useRef("");
@@ -691,17 +770,13 @@ export function KnowledgeWorkspace() {
   }, [documentBlocks, lastSavedDocument, pageTitle, selectedPage, selectedSpaceId]);
 
   const applyViewState = useCallback((view: KnowledgeView) => {
-    const sort = view.sort[0] as { direction?: string; fieldId?: string } | undefined;
-    const filter = firstViewFilterCondition(view.filter);
-    const group = view.group as { fieldId?: string };
     selectedViewIdRef.current = view.id;
     setSelectedViewId(view.id);
     setDisplayMode(view.viewType);
-    setSortFieldId(sort?.fieldId ?? "");
-    setSortDescending(sort?.direction === "desc");
-    setFilterFieldId(filter.fieldId ?? "");
-    setFilterValue(filter.value ?? "");
-    setGroupFieldId(group.fieldId ?? "");
+    setSortRules(viewSortRules(view.sort));
+    setFilterConditions(viewFilterConditions(view.filter));
+    setFilterConjunction(view.filter.conjunction === "or" ? "or" : "and");
+    setGroupRules(viewGroupRules(view.group));
   }, []);
 
   const loadWorkspace = useCallback(async (spaceId?: string, tableId?: string) => {
@@ -734,11 +809,10 @@ export function KnowledgeWorkspace() {
           selectedViewIdRef.current = "";
           setSelectedViewId("");
           setDisplayMode("grid");
-          setSortFieldId("");
-          setSortDescending(false);
-          setFilterFieldId("");
-          setFilterValue("");
-          setGroupFieldId("");
+          setSortRules([]);
+          setFilterConditions([]);
+          setFilterConjunction("and");
+          setGroupRules([]);
         }
       }
       return response;
@@ -843,6 +917,7 @@ export function KnowledgeWorkspace() {
       setAutomationRuns([]);
       setSelectedAutomationId("");
       setSelectedTableId(tableId);
+      setBaseSection("table");
       setSelectedPageId("");
       setDetailRecordId("");
       setMode("table");
@@ -861,6 +936,7 @@ export function KnowledgeWorkspace() {
   );
 
   const activateView = useCallback((view: KnowledgeView) => {
+    setBaseSection("table");
     applyViewState(view);
   }, [applyViewState]);
 
@@ -891,6 +967,92 @@ export function KnowledgeWorkspace() {
     },
     [applyViewState, canWrite, loadWorkspace, selectedSpaceId, selectedTableId, selectedView]
   );
+
+  const renameView = useCallback(async (view: KnowledgeView) => {
+    if (!canWrite || !selectedSpaceId || !selectedTableId) return;
+    const name = window.prompt("视图名称", view.name)?.trim();
+    if (!name || name === view.name) return;
+    try {
+      const response = await knowledgeRequest<{ view: KnowledgeView }>(
+        `/spaces/${selectedSpaceId}/tables/${selectedTableId}/views/${view.id}`,
+        { body: JSON.stringify({ name, revision: view.revision }), method: "PATCH" }
+      );
+      setViews((current) => current.map((item) => item.id === response.view.id ? response.view : item));
+      setViewActionId("");
+      setMessage("视图已重命名");
+    } catch (viewError) {
+      setError(viewError instanceof Error ? viewError.message : "视图重命名失败。");
+    }
+  }, [canWrite, selectedSpaceId, selectedTableId]);
+
+  const duplicateView = useCallback(async (view: KnowledgeView) => {
+    if (!canWrite || !selectedSpaceId || !selectedTableId) return;
+    try {
+      const response = await knowledgeRequest<{ view: KnowledgeView }>(
+        `/spaces/${selectedSpaceId}/tables/${selectedTableId}/views`,
+        {
+          body: JSON.stringify({
+            filter: view.filter,
+            frozenFieldCount: view.frozenFieldCount,
+            group: view.group,
+            isDefault: false,
+            name: `${view.name} 副本`,
+            rowHeight: view.rowHeight,
+            sort: view.sort,
+            viewType: view.viewType,
+            visibleFieldIds: view.visibleFieldIds
+          }),
+          method: "POST"
+        }
+      );
+      setViews((current) => [...current, response.view]);
+      activateView(response.view);
+      setViewActionId("");
+      setMessage("视图副本已创建");
+    } catch (viewError) {
+      setError(viewError instanceof Error ? viewError.message : "复制视图失败。");
+    }
+  }, [activateView, canWrite, selectedSpaceId, selectedTableId]);
+
+  const makeDefaultView = useCallback(async (view: KnowledgeView) => {
+    if (!canWrite || !selectedSpaceId || !selectedTableId || view.isDefault) return;
+    try {
+      const response = await knowledgeRequest<{ view: KnowledgeView }>(
+        `/spaces/${selectedSpaceId}/tables/${selectedTableId}/views/${view.id}`,
+        { body: JSON.stringify({ isDefault: true, revision: view.revision }), method: "PATCH" }
+      );
+      setViews((current) => current.map((item) => ({
+        ...item,
+        isDefault: item.id === response.view.id
+      })));
+      setViewActionId("");
+      setMessage("已设为默认视图");
+    } catch (viewError) {
+      setError(viewError instanceof Error ? viewError.message : "设置默认视图失败。");
+    }
+  }, [canWrite, selectedSpaceId, selectedTableId]);
+
+  const removeView = useCallback(async (view: KnowledgeView) => {
+    if (!canWrite || !selectedSpaceId || !selectedTableId) return;
+    if (views.length <= 1) {
+      setError("至少需要保留一个视图。");
+      return;
+    }
+    if (!window.confirm(`删除视图“${view.name}”？数据记录不会被删除。`)) return;
+    try {
+      await knowledgeRequest(
+        `/spaces/${selectedSpaceId}/tables/${selectedTableId}/views/${view.id}?revision=${view.revision}`,
+        { method: "DELETE" }
+      );
+      const remaining = views.filter((item) => item.id !== view.id);
+      setViews(remaining);
+      if (selectedViewId === view.id) activateView(remaining.find((item) => item.isDefault) ?? remaining[0]);
+      setViewActionId("");
+      setMessage("视图已删除，数据记录保持不变");
+    } catch (viewError) {
+      setError(viewError instanceof Error ? viewError.message : "删除视图失败。");
+    }
+  }, [activateView, canWrite, selectedSpaceId, selectedTableId, selectedViewId, views]);
 
   const openPage = useCallback(async (pageId: string) => {
     if (!(await flushDocumentRef.current())) return false;
@@ -1013,11 +1175,45 @@ export function KnowledgeWorkspace() {
           body = { description: createDescription, icon: "table-2", title: createTitle.trim() };
         } else if (createKind === "field") {
           path = `/spaces/${selectedSpaceId}/tables/${selectedTableId}/fields`;
+          const options = createFieldOptions
+            .split(/[、,，\n]/u)
+            .map((item) => item.trim())
+            .filter(Boolean)
+            .map((label, index) => ({ color: ["cyan", "blue", "violet", "green", "orange"][index % 5], label }));
+          const config: Record<string, unknown> = { required: createFieldRequired };
+          if (["select", "multi_select"].includes(createFieldType)) config.options = options;
+          if (createFieldType === "formula") config.formula = createFieldFormula.trim();
+          if (["relation", "lookup"].includes(createFieldType)) {
+            config.relationTableId = createFieldRelationTableId || selectedTableId;
+          }
+          if (editingFieldId) {
+            const currentField = fields.find((field) => field.id === editingFieldId);
+            if (!currentField) throw new Error("要编辑的字段不存在，请刷新后重试。");
+            const response = await knowledgeRequest<{ field: KnowledgeField }>(
+              `/spaces/${selectedSpaceId}/tables/${selectedTableId}/fields/${editingFieldId}`,
+              {
+                body: JSON.stringify({
+                  config: { ...currentField.config, ...config },
+                  fieldType: createFieldType,
+                  name: createTitle.trim(),
+                  revision: currentField.revision
+                }),
+                method: "PATCH"
+              }
+            );
+            setFields((current) => current.map((field) => field.id === response.field.id ? response.field : field));
+            setCreateKind(null);
+            setEditingFieldId("");
+            setCreateTitle("");
+            setCreateFieldOptions("");
+            setCreateFieldFormula("");
+            setCreateFieldRequired(false);
+            setCreateFieldRelationTableId("");
+            setMessage("字段配置已保存");
+            return;
+          }
           body = {
-            config:
-              createFieldType === "select" || createFieldType === "multi_select"
-                ? { options: [{ color: "blue", label: "待处理" }, { color: "green", label: "已完成" }] }
-                : {},
+            config,
             fieldType: createFieldType,
             name: createTitle.trim(),
             sortOrder: fields.length * 10
@@ -1043,6 +1239,11 @@ export function KnowledgeWorkspace() {
         setCreateKind(null);
         setCreateTitle("");
         setCreateDescription("");
+        setCreateFieldOptions("");
+        setCreateFieldFormula("");
+        setCreateFieldRequired(false);
+        setCreateFieldRelationTableId("");
+        setEditingFieldId("");
         setMessage("已创建并同步到云端");
         if (createKind === "space") {
           const space = response.space as KnowledgeSpace | undefined;
@@ -1055,6 +1256,10 @@ export function KnowledgeWorkspace() {
           const table = response.table as KnowledgeTable | undefined;
           await loadWorkspace(selectedSpaceId);
           if (table) await openTable(table.id);
+        } else if (createKind === "view") {
+          const view = response.view as KnowledgeView | undefined;
+          await loadWorkspace(selectedSpaceId, selectedTableId);
+          if (view) activateView(view);
         } else {
           await loadWorkspace(selectedSpaceId, selectedTableId);
         }
@@ -1066,12 +1271,18 @@ export function KnowledgeWorkspace() {
     },
     [
       createDescription,
+      createFieldFormula,
+      createFieldOptions,
+      createFieldRelationTableId,
+      createFieldRequired,
       createFieldType,
       createKind,
       createTitle,
       createViewType,
+      activateView,
       canWrite,
       fields,
+      editingFieldId,
       loadWorkspace,
       openPage,
       openSpace,
@@ -1447,29 +1658,20 @@ export function KnowledgeWorkspace() {
     [canWrite, pages, selectedSpaceId]
   );
 
-  const renameField = useCallback(
-    async (field: KnowledgeField) => {
-      if (!canWrite || !selectedSpaceId || !selectedTableId) return;
-      const name = window.prompt("字段名称", field.name)?.trim();
-      if (!name || name === field.name) return;
-      try {
-        const response = await knowledgeRequest<{ field: KnowledgeField }>(
-          `/spaces/${selectedSpaceId}/tables/${selectedTableId}/fields/${field.id}`,
-          {
-            body: JSON.stringify({ name, revision: field.revision }),
-            method: "PATCH"
-          }
-        );
-        setFields((current) =>
-          current.map((item) => (item.id === response.field.id ? response.field : item))
-        );
-        setFieldActionId("");
-      } catch (fieldError) {
-        setError(fieldError instanceof Error ? fieldError.message : "字段重命名失败。");
-      }
-    },
-    [canWrite, selectedSpaceId, selectedTableId]
-  );
+  const openFieldEditor = useCallback((field: KnowledgeField) => {
+    if (!canWrite) return;
+    setFieldActionId("");
+    setEditingFieldId(field.id);
+    setCreateTitle(field.name);
+    setCreateFieldType(field.fieldType);
+    setCreateFieldOptions(fieldOptions(field).join("、"));
+    setCreateFieldFormula(typeof field.config.formula === "string" ? field.config.formula : "");
+    setCreateFieldRequired(field.config.required === true);
+    setCreateFieldRelationTableId(
+      typeof field.config.relationTableId === "string" ? field.config.relationTableId : selectedTableId
+    );
+    setCreateKind("field");
+  }, [canWrite, selectedTableId]);
 
   const removeField = useCallback(
     async (field: KnowledgeField) => {
@@ -2126,38 +2328,43 @@ export function KnowledgeWorkspace() {
   }, [fields, selectedView]);
   const visibleRecords = useMemo(() => {
     const term = recordSearch.trim().toLowerCase();
-    const viewFilter = filterValue.trim().toLowerCase();
-    const next = records.filter((record) =>
-      (term
+    const next = records.filter((record) => {
+      const matchesSearch = term
         ? Object.values(record.values).some((value) =>
             stringifyValue(value).toLowerCase().includes(term)
           )
-        : true) &&
-      (filterFieldId && viewFilter
-        ? stringifyValue(record.values[filterFieldId]).toLowerCase().includes(viewFilter)
-        : true)
-    );
-    if (!sortFieldId) return next;
-    return [...next].sort((left, right) => {
-      const comparison = stringifyValue(left.values[sortFieldId]).localeCompare(
-        stringifyValue(right.values[sortFieldId]),
-        "zh-CN",
-        { numeric: true }
+        : true;
+      if (!matchesSearch || !filterConditions.length) return matchesSearch;
+      const results = filterConditions.map((condition) =>
+        matchesFilter(record.values[condition.fieldId], condition)
       );
-      return sortDescending ? -comparison : comparison;
+      return filterConjunction === "or" ? results.some(Boolean) : results.every(Boolean);
     });
-  }, [filterFieldId, filterValue, recordSearch, records, sortDescending, sortFieldId]);
+    if (!sortRules.length) return next;
+    return [...next].sort((left, right) => {
+      for (const rule of sortRules) {
+        const comparison = stringifyValue(left.values[rule.fieldId]).localeCompare(
+          stringifyValue(right.values[rule.fieldId]),
+          "zh-CN",
+          { numeric: true }
+        );
+        if (comparison) return rule.direction === "desc" ? -comparison : comparison;
+      }
+      return left.sortOrder - right.sortOrder;
+    });
+  }, [filterConditions, filterConjunction, recordSearch, records, sortRules]);
 
-  const groupField = fields.find((field) => field.id === groupFieldId);
   const groupedRecords = useMemo(() => {
-    if (!groupField) return [["全部记录", visibleRecords]] as Array<[string, KnowledgeRecord[]]>;
+    if (!groupRules.length) return [["全部记录", visibleRecords]] as Array<[string, KnowledgeRecord[]]>;
     const groups = new Map<string, KnowledgeRecord[]>();
     for (const record of visibleRecords) {
-      const key = stringifyValue(record.values[groupField.id]) || "未分组";
+      const key = groupRules
+        .map((rule) => stringifyValue(record.values[rule.fieldId]) || "未分组")
+        .join(" / ");
       groups.set(key, [...(groups.get(key) ?? []), record]);
     }
     return [...groups.entries()];
-  }, [groupField, visibleRecords]);
+  }, [groupRules, visibleRecords]);
   const distributionField = fields.find((field) => field.fieldType === "select");
   const recordDistribution = useMemo(() => {
     if (!distributionField) return [];
@@ -2173,16 +2380,41 @@ export function KnowledgeWorkspace() {
     [fields]
   );
   const calendarField = dateFields[0];
-  const calendarGroups = useMemo(() => {
+  const calendarRecordGroups = useMemo(() => {
     const groups = new Map<string, KnowledgeRecord[]>();
     for (const record of visibleRecords) {
-      const key = calendarField
-        ? stringifyValue(record.values[calendarField.id]) || "未安排日期"
-        : "缺少日期字段";
+      const raw = calendarField ? stringifyValue(record.values[calendarField.id]) : "";
+      const parsed = raw ? new Date(raw) : null;
+      const key = parsed && Number.isFinite(parsed.getTime()) ? dateKey(parsed) : "unscheduled";
       groups.set(key, [...(groups.get(key) ?? []), record]);
     }
-    return [...groups.entries()].sort(([left], [right]) => left.localeCompare(right));
+    return groups;
   }, [calendarField, visibleRecords]);
+  const calendarDays = useMemo(() => {
+    const anchor = new Date(`${calendarAnchor}T12:00:00`);
+    const start = new Date(anchor);
+    let count = 1;
+    if (calendarScale === "month") {
+      start.setDate(1);
+      start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+      count = 42;
+    } else if (calendarScale === "week") {
+      start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+      count = 7;
+    }
+    return Array.from({ length: count }, (_, index) => {
+      const day = new Date(start);
+      day.setDate(start.getDate() + index);
+      return day;
+    });
+  }, [calendarAnchor, calendarScale]);
+  const moveCalendar = useCallback((direction: -1 | 1) => {
+    const next = new Date(`${calendarAnchor}T12:00:00`);
+    if (calendarScale === "month") next.setMonth(next.getMonth() + direction);
+    else if (calendarScale === "week") next.setDate(next.getDate() + direction * 7);
+    else next.setDate(next.getDate() + direction);
+    setCalendarAnchor(dateKey(next));
+  }, [calendarAnchor, calendarScale]);
   const ganttBars = useMemo(() => {
     const startField = dateFields[0];
     const endField = dateFields[1] ?? startField;
@@ -2561,20 +2793,22 @@ export function KnowledgeWorkspace() {
               <aside className={styles.baseNavigator}>
                 <div className={styles.baseNavTitle}><Table2 /><strong>{selectedTable.title}</strong><button aria-label="表格菜单" onClick={() => setPanel("more")} type="button"><MoreHorizontal /></button></div>
                 <div className={styles.baseNavSection}><span>数据表</span>{canWrite ? <button aria-label="新建数据表" onClick={() => setCreateKind("table")} type="button"><Plus /></button> : null}</div>
-                {tables.map((table) => <button className={cn(styles.baseNavItem, table.id === selectedTableId && styles.baseNavItemActive)} key={table.id} onClick={() => void openTable(table.id)} type="button"><Grid3X3 /><span>{table.title}</span></button>)}
+                {tables.map((table) => <button className={cn(styles.baseNavItem, baseSection === "table" && table.id === selectedTableId && styles.baseNavItemActive)} key={table.id} onClick={() => void openTable(table.id)} type="button"><Grid3X3 /><span>{table.title}</span></button>)}
                 <div className={styles.baseNavDivider} />
-                <button className={styles.baseNavItem} onClick={() => setPanel("dashboard")} type="button"><LayoutDashboard /><span>仪表盘</span><small>实时统计</small></button>
-                {canWrite ? <button className={styles.baseNavItem} onClick={() => setPanel("automation")} type="button"><Zap /><span>工作流</span><small>{automations.length} 条</small></button> : null}
+                <div className={styles.baseNavSection}><span>应用</span></div>
+                <button className={cn(styles.baseNavItem, baseSection === "dashboard" && styles.baseNavItemActive)} onClick={() => setBaseSection("dashboard")} type="button"><LayoutDashboard /><span>仪表盘</span><small>实时统计</small></button>
+                {canWrite ? <button className={cn(styles.baseNavItem, baseSection === "automation" && styles.baseNavItemActive)} onClick={() => setBaseSection("automation")} type="button"><Zap /><span>工作流</span><small>{automations.length} 条</small></button> : null}
               </aside>
 
               <section className={styles.baseContent}>
+                {baseSection === "dashboard" ? <div className={styles.baseModulePage}><header><div><span>数据分析</span><h1>{selectedTable.title} · 仪表盘</h1><p>所有组件读取同一张数据表，记录变化会实时同步。</p></div><button onClick={() => setBaseSection("table")} type="button"><Grid3X3 />返回数据表</button></header><section className={styles.dashboardMetricGrid}><article><span>记录总数</span><strong>{recordTotal}</strong><small>当前加载 {records.length} 条</small></article><article><span>字段数量</span><strong>{fields.length}</strong><small>{visibleFields.length} 个在当前视图显示</small></article><article><span>视图数量</span><strong>{views.length}</strong><small>{Object.keys(viewTypeLabels).filter((type) => views.some((view) => view.viewType === type)).length} 种视图类型</small></article><article><span>自动化</span><strong>{automations.filter((rule) => rule.enabled).length}</strong><small>{automations.length} 条工作流</small></article></section><section className={styles.dashboardChart}><header><div><span>分类分布</span><strong>{distributionField?.name || "记录概览"}</strong></div><small>{recordDistribution.length} 个分类</small></header>{recordDistribution.length ? recordDistribution.map(([label, count]) => <div key={label}><span>{label}</span><div><i style={{ width: `${Math.max(4, (count / Math.max(1, records.length)) * 100)}%` }} /></div><strong>{count}</strong></div>) : <EmptyState description="添加单选字段后，这里会自动生成实时分类图表。" title="等待可视化字段" />}</section></div> : baseSection === "automation" ? <div className={styles.baseModulePage}><header><div><span>自动化</span><h1>{selectedTable.title} · 工作流</h1><p>通过触发器连接记录变化、通知与生产动作。</p></div><button onClick={() => setBaseSection("table")} type="button"><Grid3X3 />返回数据表</button></header><div className={styles.automationWorkspace}><section className={styles.automationCreate}><strong>新建工作流</strong><input maxLength={255} onChange={(event) => setAutomationName(event.target.value)} placeholder="例如：新增记录后通知制片" value={automationName} /><select onChange={(event) => setAutomationTrigger(event.target.value as AutomationTrigger)} value={automationTrigger}><option value="manual">手动触发</option><option value="record_created">新增记录</option><option value="record_updated">更新记录</option><option value="field_changed">字段变化</option><option value="schedule">定时运行</option></select><button className={styles.primaryAction} disabled={panelLoading || !automationName.trim()} onClick={() => void createAutomation()} type="button"><Plus />创建工作流</button></section><section className={styles.automationRules}>{automations.map((rule) => <article className={selectedAutomationId === rule.id ? styles.automationRuleActive : undefined} key={rule.id} onClick={() => { setSelectedAutomationId(rule.id); void loadAutomationRuns(rule.id); }}><header><div><strong>{rule.name}</strong><span>{rule.triggerType}</span></div><label><input checked={rule.enabled} onChange={() => void toggleAutomation(rule)} onClick={(event) => event.stopPropagation()} type="checkbox" />{rule.enabled ? "已启用" : "已停用"}</label></header><footer><small>更新于 {formatDate(rule.updatedAt)}</small><button disabled={!rule.enabled || panelLoading} onClick={(event) => { event.stopPropagation(); void runAutomation(rule); }} type="button"><Zap />运行</button><button aria-label="删除规则" onClick={(event) => { event.stopPropagation(); void removeAutomation(rule); }} type="button"><Trash2 /></button></footer></article>)}{!automations.length ? <EmptyState description="创建第一条工作流，让重复动作自动执行。" title="暂无工作流" /> : null}</section><section className={styles.automationRuns}><header><strong>运行日志</strong><span>{automationRuns.length} 次</span></header>{automationRuns.map((run) => <article key={run.id}><span className={cn(styles.runStatus, styles[`run_${run.status}`])}>{run.status}</span><div><strong>{run.recordId ? `记录 ${run.recordId.slice(0, 8)}` : "手动运行"}</strong><small>{formatDate(run.createdAt)}{run.error ? ` · ${run.error}` : ""}</small></div></article>)}{!automationRuns.length ? <p className={styles.drawerEmpty}>选择工作流后查看运行日志。</p> : null}</section></div></div> : <>
                 <div className={styles.baseTitlebar}>
                   <div><h1>{selectedTable.title}</h1><p>{selectedTable.description || "用结构化数据连接影视生产流程"}</p></div>
                   <div><button onClick={() => setPanel("share")} type="button"><Share2 />分享</button>{canWrite ? <button onClick={() => setPanel("automation")} type="button"><Zap />自动化</button> : null}<button aria-label="通知" onClick={() => setPanel("notifications")} type="button"><Bell /></button><button aria-label="更多" onClick={() => setPanel("more")} type="button"><MoreHorizontal /></button><button aria-label="查找" onClick={() => document.getElementById("record-search")?.focus()} type="button"><Search /></button>{canWrite ? <button aria-label="新建" onClick={() => void addRecord()} type="button"><Plus /></button> : null}</div>
                 </div>
 
                 <div className={styles.viewTabs}>
-                  {views.map((view) => { const Icon = viewTypeIcons[view.viewType]; return <button className={cn(selectedViewId === view.id && styles.viewTabActive)} key={view.id} onClick={() => activateView(view)} type="button"><Icon />{view.name}</button>; })}
+                  {views.map((view) => { const Icon = viewTypeIcons[view.viewType]; return <div className={cn(styles.viewTabItem, selectedViewId === view.id && styles.viewTabActive)} key={view.id}><button onClick={() => activateView(view)} type="button"><Icon />{view.name}{view.isDefault ? <span className={styles.defaultViewMark}>默认</span> : null}</button>{canWrite ? <button aria-label={`${view.name} 视图菜单`} onClick={() => setViewActionId((current) => current === view.id ? "" : view.id)} type="button"><MoreHorizontal /></button> : null}{viewActionId === view.id ? <div className={styles.viewMenu}><button onClick={() => void renameView(view)} type="button">重命名</button><button onClick={() => void duplicateView(view)} type="button"><Copy />复制视图</button><button disabled={view.isDefault} onClick={() => void makeDefaultView(view)} type="button">设为默认视图</button><button className={styles.dangerText} onClick={() => void removeView(view)} type="button"><Trash2 />删除视图</button></div> : null}</div>; })}
                   {canWrite ? <button onClick={() => setCreateKind("view")} type="button"><Plus />新建视图</button> : null}
                 </div>
 
@@ -2583,9 +2817,9 @@ export function KnowledgeWorkspace() {
                     <button className={styles.addRecordButton} onClick={() => void addRecord()} type="button"><Plus />添加记录</button>
                     <button onClick={() => setPanel("field-settings")} type="button"><Settings2 />字段配置</button>
                     <button onClick={() => setPanel("view-settings")} type="button"><Eye />视图配置</button>
-                    <button className={filterFieldId && filterValue ? styles.toolbarActive : undefined} onClick={() => setPanel("filter")} type="button"><Filter />筛选</button>
-                    <button className={groupFieldId ? styles.toolbarActive : undefined} onClick={() => setPanel("group")} type="button"><Columns3 />分组</button>
-                    <button className={sortFieldId ? styles.toolbarActive : undefined} onClick={() => setPanel("sort")} type="button"><ArrowUpDown />排序</button>
+                    <button className={filterConditions.length ? styles.toolbarActive : undefined} onClick={() => setPanel("filter")} type="button"><Filter />筛选{filterConditions.length ? ` ${filterConditions.length}` : ""}</button>
+                    <button className={groupRules.length ? styles.toolbarActive : undefined} onClick={() => setPanel("group")} type="button"><Columns3 />分组{groupRules.length ? ` ${groupRules.length}` : ""}</button>
+                    <button className={sortRules.length ? styles.toolbarActive : undefined} onClick={() => setPanel("sort")} type="button"><ArrowUpDown />排序{sortRules.length ? ` ${sortRules.length}` : ""}</button>
                     <button onClick={() => setPanel("row-height")} type="button"><Rows3 />行高</button>
                   </div> : <div />}
                   <div className={styles.toolbarAside}>
@@ -2602,7 +2836,7 @@ export function KnowledgeWorkspace() {
                   ) : displayMode === "gallery" ? (
                     <div className={styles.galleryGrid}>{visibleRecords.map((record) => <button className={styles.galleryCard} key={record.id} onClick={() => setDetailRecordId(record.id)} type="button"><div><Database /></div><strong>{stringifyValue(record.values[visibleFields[0]?.id]) || "未命名记录"}</strong>{visibleFields.slice(1, 4).map((field) => <span key={field.id}>{field.name} · {stringifyValue(record.values[field.id]) || "—"}</span>)}</button>)}</div>
                   ) : displayMode === "calendar" ? (
-                    <div className={styles.calendarView}>{calendarField ? calendarGroups.map(([date, items]) => <section key={date}><header><CalendarDays /><strong>{date}</strong><span>{items.length} 条</span></header>{items.map((record) => <button key={record.id} onClick={() => setDetailRecordId(record.id)} type="button">{stringifyValue(record.values[visibleFields[0]?.id]) || "未命名记录"}</button>)}</section>) : <EmptyState description="添加日期字段后，日历视图会按日期真实展示记录；当前没有可用日期字段。" title="缺少日期字段" />}</div>
+                    <div className={styles.calendarView}>{calendarField ? <><div className={styles.calendarToolbar}><div><button aria-label="上一时间段" onClick={() => moveCalendar(-1)} type="button"><ArrowLeft /></button><button onClick={() => setCalendarAnchor(dateKey(new Date()))} type="button">今天</button><button aria-label="下一时间段" onClick={() => moveCalendar(1)} type="button"><ArrowRight /></button><strong>{new Intl.DateTimeFormat("zh-CN", { day: calendarScale === "day" ? "numeric" : undefined, month: "long", year: "numeric" }).format(new Date(`${calendarAnchor}T12:00:00`))}</strong></div><select aria-label="日历显示范围" onChange={(event) => setCalendarScale(event.target.value as "day" | "month" | "week")} value={calendarScale}><option value="month">月</option><option value="week">周</option><option value="day">日</option></select></div>{calendarScale !== "day" ? <div className={styles.calendarWeekdays}>{["周一", "周二", "周三", "周四", "周五", "周六", "周日"].map((day) => <span key={day}>{day}</span>)}</div> : null}<div className={cn(styles.calendarGrid, calendarScale === "day" && styles.calendarDayGrid)}>{calendarDays.map((day) => { const key = dateKey(day); const items = calendarRecordGroups.get(key) ?? []; const anchor = new Date(`${calendarAnchor}T12:00:00`); return <section className={cn(calendarScale === "month" && day.getMonth() !== anchor.getMonth() && styles.calendarMuted, key === dateKey(new Date()) && styles.calendarToday)} key={key}><header><strong>{day.getDate()}</strong><span>{items.length ? `${items.length} 条` : ""}</span></header><div>{items.slice(0, calendarScale === "day" ? 20 : 4).map((record) => <button key={record.id} onClick={() => setDetailRecordId(record.id)} type="button">{stringifyValue(record.values[visibleFields[0]?.id]) || "未命名记录"}</button>)}{items.length > (calendarScale === "day" ? 20 : 4) ? <small>还有 {items.length - (calendarScale === "day" ? 20 : 4)} 条</small> : null}</div></section>; })}</div>{calendarRecordGroups.get("unscheduled")?.length ? <div className={styles.unscheduledRecords}><strong>未安排日期</strong>{calendarRecordGroups.get("unscheduled")?.map((record) => <button key={record.id} onClick={() => setDetailRecordId(record.id)} type="button">{stringifyValue(record.values[visibleFields[0]?.id]) || "未命名记录"}</button>)}</div> : null}</> : <EmptyState description="添加日期字段后，日历视图会按日、周、月真实展示记录；当前没有可用日期字段。" title="缺少日期字段" />}</div>
                   ) : displayMode === "gantt" ? (
                     dateFields.length ? <div className={styles.ganttView}><header><div><strong>任务</strong><span>{dateFields[0].name} → {dateFields[1]?.name || dateFields[0].name}</span></div><div><span>时间轴</span></div></header>{ganttBars.map(({ left, record, width }) => <button key={record.id} onClick={() => setDetailRecordId(record.id)} type="button"><strong>{stringifyValue(record.values[visibleFields[0]?.id]) || "未命名记录"}</strong><div><span style={{ left: `${left}%`, width: `${width}%` }} /></div></button>)}{!ganttBars.length ? <p>已有日期字段，但当前记录尚未填写有效日期。</p> : null}</div> : <EmptyState action={<button className={styles.primaryAction} onClick={() => setPanel("field-settings")} type="button">添加日期字段</button>} description="甘特视图需要至少一个日期字段；有两个日期字段时会分别作为开始和结束日期。" title="配置甘特日期" />
                   ) : displayMode === "form" ? (
@@ -2610,7 +2844,7 @@ export function KnowledgeWorkspace() {
                   ) : (
                     <div className={styles.gridWrap}>
                       <table className={styles.dataGrid}>
-                        <thead><tr><th className={styles.rowNumber}>#</th>{visibleFields.map((field) => <th key={field.id}><div className={styles.fieldHeader}><span>{field.fieldType === "number" ? <Hash /> : field.fieldType === "date" ? <CalendarDays /> : field.fieldType === "person" ? <Users /> : field.fieldType === "checkbox" ? <CheckSquare /> : field.fieldType === "url" ? <Link2 /> : <ListFilter />}{field.name}</span><button aria-label={`${field.name} 字段菜单`} disabled={!canWrite} onClick={() => setFieldActionId((current) => current === field.id ? "" : field.id)} type="button"><MoreHorizontal /></button>{canWrite && fieldActionId === field.id ? <div className={styles.fieldMenu}><button onClick={() => void renameField(field)} type="button">重命名字段</button><button onClick={() => void toggleFieldVisibility(field.id)} type="button"><EyeOff />隐藏字段</button><button className={styles.dangerText} onClick={() => void removeField(field)} type="button"><Trash2 />删除字段</button></div> : null}</div></th>)}<th className={styles.addFieldColumn}>{canWrite ? <button aria-label="新增字段" onClick={() => setCreateKind("field")} type="button"><Plus /></button> : null}</th></tr></thead>
+                        <thead><tr><th className={styles.rowNumber}>#</th>{visibleFields.map((field) => <th key={field.id}><div className={styles.fieldHeader}><span>{field.fieldType === "number" ? <Hash /> : field.fieldType === "date" ? <CalendarDays /> : field.fieldType === "person" ? <Users /> : field.fieldType === "checkbox" ? <CheckSquare /> : field.fieldType === "url" ? <Link2 /> : <ListFilter />}{field.name}</span><button aria-label={`${field.name} 字段菜单`} disabled={!canWrite} onClick={() => setFieldActionId((current) => current === field.id ? "" : field.id)} type="button"><MoreHorizontal /></button>{canWrite && fieldActionId === field.id ? <div className={styles.fieldMenu}><button onClick={() => openFieldEditor(field)} type="button">编辑字段配置</button><button onClick={() => void toggleFieldVisibility(field.id)} type="button"><EyeOff />隐藏字段</button><button className={styles.dangerText} onClick={() => void removeField(field)} type="button"><Trash2 />删除字段</button></div> : null}</div></th>)}<th className={styles.addFieldColumn}>{canWrite ? <button aria-label="新增字段" onClick={() => { setEditingFieldId(""); setCreateTitle(""); setCreateFieldType("text"); setCreateFieldOptions(""); setCreateFieldFormula(""); setCreateFieldRequired(false); setCreateKind("field"); }} type="button"><Plus /></button> : null}</th></tr></thead>
                         <tbody>{visibleRecords.map((record, index) => <tr key={record.id}><td className={styles.rowNumber}><button onClick={() => setDetailRecordId(record.id)} type="button">{index + 1}</button></td>{visibleFields.map((field) => <td key={field.id}>{renderCell(record, field, true)}</td>)}<td className={styles.addFieldColumn}><button aria-label="打开记录详情" onClick={() => setDetailRecordId(record.id)} type="button"><ChevronRight /></button></td></tr>)}</tbody>
                       </table>
                       {canWrite ? <button className={styles.gridAddRecord} onClick={() => void addRecord()} type="button"><Plus />添加记录</button> : null}
@@ -2619,6 +2853,7 @@ export function KnowledgeWorkspace() {
                   {!visibleRecords.length && displayMode !== "gantt" && displayMode !== "form" ? <EmptyState action={canWrite ? <button className={styles.primaryAction} onClick={() => void addRecord()} type="button">添加第一条记录</button> : undefined} description={canWrite ? "当前视图还没有符合条件的记录，可添加记录或清空筛选条件。" : "当前视图还没有符合条件的记录。"} title="暂无记录" /> : null}
                   {records.length < recordTotal ? <button className={styles.loadMoreRecords} disabled={recordsLoadingMore} onClick={() => void loadMoreRecords()} type="button">{recordsLoadingMore ? <Loader2 className={styles.spin} /> : <Rows3 />}加载更多记录（已加载 {records.length}/{recordTotal}）</button> : null}
                 </div>
+                </>}
               </section>
             </main>
           ) : (
@@ -2676,11 +2911,11 @@ export function KnowledgeWorkspace() {
             </div> : null}
             {panel === "notifications" ? <div className={styles.notificationFeed}><header><strong>最新动态</strong><span>{recordActivities.length + automationRuns.length} 条</span></header>{recordActivities.map((activity) => <article key={activity.id}><span><Clock3 /></span><div><strong>{activity.actorAccount || "系统"} · {activityLabel(activity.action)}</strong><small>{formatDate(activity.createdAt)}</small></div></article>)}{automationRuns.map((run) => <article key={run.id}><span><Zap /></span><div><strong>自动化运行 · {run.status}</strong><small>{formatDate(run.updatedAt)}{run.error ? ` · ${run.error}` : ""}</small></div></article>)}{!panelLoading && !recordActivities.length && !automationRuns.length ? <p className={styles.drawerEmpty}>当前记录与工作流暂无新动态。</p> : null}</div> : null}
             {panel === "dashboard" ? <div className={styles.dashboardPanel}><section><span>记录总数</span><strong>{recordTotal}</strong><small>当前已加载 {records.length} 条</small></section><section><span>字段数量</span><strong>{fields.length}</strong><small>{visibleFields.length} 个字段在当前视图显示</small></section><section><span>最近更新</span><strong>{records.length ? formatDate([...records].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0].updatedAt) : "—"}</strong><small>{records.length ? "数据实时读取" : "暂无记录"}</small></section><div><header><strong>{distributionField ? `${distributionField.name} 分布` : "记录分布"}</strong><span>{recordDistribution.length} 类</span></header>{recordDistribution.length ? recordDistribution.map(([label, count]) => <div key={label}><span>{label}</span><div><i style={{ width: `${Math.max(4, (count / Math.max(1, records.length)) * 100)}%` }} /></div><strong>{count}</strong></div>) : <p className={styles.drawerEmpty}>添加单选字段后可查看分类分布。</p>}</div></div> : null}
-            {panel === "filter" ? <div className={styles.panelBody}><label>筛选字段<select onChange={(event) => setFilterFieldId(event.target.value)} value={filterFieldId}><option value="">不筛选</option>{fields.map((field) => <option key={field.id} value={field.id}>{field.name}</option>)}</select></label><label>包含文本<input onChange={(event) => setFilterValue(event.target.value)} placeholder="输入筛选值" value={filterValue} /></label><button className={styles.primaryAction} onClick={() => void updateSelectedView({ filter: { conjunction: "and", conditions: filterFieldId && filterValue ? [{ fieldId: filterFieldId, operator: "contains", value: filterValue }] : [] } }).then(() => setPanel(null))} type="button">应用并保存到视图</button></div> : null}
-            {panel === "group" ? <div className={styles.panelBody}><label>按字段分组<select onChange={(event) => setGroupFieldId(event.target.value)} value={groupFieldId}><option value="">不分组</option>{fields.map((field) => <option key={field.id} value={field.id}>{field.name}</option>)}</select></label><button className={styles.primaryAction} onClick={() => void updateSelectedView({ group: groupFieldId ? { fieldId: groupFieldId } : {} }).then(() => setPanel(null))} type="button">应用并保存到视图</button></div> : null}
-            {panel === "sort" ? <div className={styles.panelBody}><label>排序字段<select onChange={(event) => setSortFieldId(event.target.value)} value={sortFieldId}><option value="">不排序</option>{fields.map((field) => <option key={field.id} value={field.id}>{field.name}</option>)}</select></label><label>方向<select onChange={(event) => setSortDescending(event.target.value === "desc")} value={sortDescending ? "desc" : "asc"}><option value="asc">升序</option><option value="desc">降序</option></select></label><button className={styles.primaryAction} onClick={() => void updateSelectedView({ sort: sortFieldId ? [{ direction: sortDescending ? "desc" : "asc", fieldId: sortFieldId }] : [] }).then(() => setPanel(null))} type="button">应用并保存到视图</button></div> : null}
+            {panel === "filter" ? <div className={styles.panelBody}><div className={styles.ruleHeader}><span>满足以下</span><select onChange={(event) => setFilterConjunction(event.target.value === "or" ? "or" : "and")} value={filterConjunction}><option value="and">所有条件（且）</option><option value="or">任一条件（或）</option></select></div><div className={styles.ruleList}>{filterConditions.map((condition, index) => <div className={styles.ruleRow} key={`${condition.fieldId}-${index}`}><select aria-label={`筛选字段 ${index + 1}`} onChange={(event) => setFilterConditions((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, fieldId: event.target.value } : item))} value={condition.fieldId}><option value="">选择字段</option>{fields.map((field) => <option key={field.id} value={field.id}>{field.name}</option>)}</select><select aria-label={`筛选方式 ${index + 1}`} onChange={(event) => setFilterConditions((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, operator: event.target.value } : item))} value={condition.operator}>{Object.entries(filterOperatorLabels).map(([operator, label]) => <option key={operator} value={operator}>{label}</option>)}</select>{["is_empty", "is_not_empty"].includes(condition.operator) ? <span className={styles.rulePlaceholder}>无需填写值</span> : <input aria-label={`筛选值 ${index + 1}`} onChange={(event) => setFilterConditions((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, value: event.target.value } : item))} placeholder="输入条件值" value={condition.value} />}<button aria-label={`删除筛选条件 ${index + 1}`} onClick={() => setFilterConditions((current) => current.filter((_, itemIndex) => itemIndex !== index))} type="button"><X /></button></div>)}</div><button className={styles.addRuleButton} onClick={() => setFilterConditions((current) => [...current, { fieldId: fields[0]?.id ?? "", operator: "contains", value: "" }])} type="button"><Plus />添加筛选条件</button><button className={styles.primaryAction} onClick={() => void updateSelectedView({ filter: { conjunction: filterConjunction, conditions: filterConditions.filter((condition) => condition.fieldId) } }).then(() => setPanel(null))} type="button">应用并保存到当前视图</button></div> : null}
+            {panel === "group" ? <div className={styles.panelBody}><p className={styles.panelHint}>可按多个字段逐级分组，顺序从上到下生效。</p><div className={styles.ruleList}>{groupRules.map((rule, index) => <div className={styles.ruleRowSimple} key={`${rule.fieldId}-${index}`}><span>{index + 1}</span><select aria-label={`分组字段 ${index + 1}`} onChange={(event) => setGroupRules((current) => current.map((item, itemIndex) => itemIndex === index ? { fieldId: event.target.value } : item))} value={rule.fieldId}><option value="">选择字段</option>{fields.map((field) => <option key={field.id} value={field.id}>{field.name}</option>)}</select><button aria-label={`删除分组 ${index + 1}`} onClick={() => setGroupRules((current) => current.filter((_, itemIndex) => itemIndex !== index))} type="button"><X /></button></div>)}</div><button className={styles.addRuleButton} onClick={() => setGroupRules((current) => [...current, { fieldId: fields[0]?.id ?? "" }])} type="button"><Plus />添加分组层级</button><button className={styles.primaryAction} onClick={() => void updateSelectedView({ group: { rules: groupRules.filter((rule) => rule.fieldId) } }).then(() => setPanel(null))} type="button">应用并保存到当前视图</button></div> : null}
+            {panel === "sort" ? <div className={styles.panelBody}><p className={styles.panelHint}>支持多级排序；前面的规则优先级更高。</p><div className={styles.ruleList}>{sortRules.map((rule, index) => <div className={styles.ruleRowSimple} key={`${rule.fieldId}-${index}`}><span>{index + 1}</span><select aria-label={`排序字段 ${index + 1}`} onChange={(event) => setSortRules((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, fieldId: event.target.value } : item))} value={rule.fieldId}><option value="">选择字段</option>{fields.map((field) => <option key={field.id} value={field.id}>{field.name}</option>)}</select><select aria-label={`排序方向 ${index + 1}`} onChange={(event) => setSortRules((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, direction: event.target.value === "desc" ? "desc" : "asc" } : item))} value={rule.direction}><option value="asc">升序</option><option value="desc">降序</option></select><button aria-label={`删除排序 ${index + 1}`} onClick={() => setSortRules((current) => current.filter((_, itemIndex) => itemIndex !== index))} type="button"><X /></button></div>)}</div><button className={styles.addRuleButton} onClick={() => setSortRules((current) => [...current, { direction: "asc", fieldId: fields[0]?.id ?? "" }])} type="button"><Plus />添加排序规则</button><button className={styles.primaryAction} onClick={() => void updateSelectedView({ sort: sortRules.filter((rule) => rule.fieldId) }).then(() => setPanel(null))} type="button">应用并保存到当前视图</button></div> : null}
             {panel === "row-height" ? <div className={styles.panelBody}><p className={styles.panelHint}>行高会保存到当前视图，并同步给所有协作者。</p><div className={styles.choiceGrid}>{(["compact", "medium", "tall"] as const).map((height) => <button className={selectedView?.rowHeight === height ? styles.choiceActive : undefined} key={height} onClick={() => void updateSelectedView({ rowHeight: height }).then(() => setPanel(null))} type="button"><Rows3 /><strong>{height === "compact" ? "紧凑" : height === "medium" ? "标准" : "宽松"}</strong></button>)}</div></div> : null}
-            {panel === "field-settings" ? <div className={styles.fieldSettings}><div><label className={styles.panelSearch}><Search /><input onChange={(event) => setFieldSearch(event.target.value)} placeholder="搜索字段" value={fieldSearch} /></label><div className={styles.fieldList}>{filteredFields.map((field) => { const visible = !selectedView?.visibleFieldIds.length || selectedView.visibleFieldIds.includes(field.id); return <div key={field.id}><button onClick={() => void toggleFieldVisibility(field.id)} type="button">{visible ? <Eye /> : <EyeOff />}</button><span><ListFilter /><strong>{field.name}</strong><small>{fieldTypeLabels[field.fieldType]}</small></span><button onClick={() => void renameField(field)} type="button"><MoreHorizontal /></button></div>; })}{!filteredFields.length ? <p className={styles.drawerEmpty}>没有匹配的字段。</p> : null}</div><button className={styles.addFieldButton} onClick={() => { setPanel(null); setCreateKind("field"); }} type="button"><Plus />新增字段</button></div><aside><strong>字段类型</strong>{Object.entries(fieldTypeLabels).map(([type, label]) => <button key={type} onClick={() => { setCreateFieldType(type as FieldType); setPanel(null); setCreateKind("field"); }} type="button"><ListFilter />{label}</button>)}</aside></div> : null}
+            {panel === "field-settings" ? <div className={styles.fieldSettings}><div><label className={styles.panelSearch}><Search /><input onChange={(event) => setFieldSearch(event.target.value)} placeholder="搜索字段" value={fieldSearch} /></label><div className={styles.fieldList}>{filteredFields.map((field) => { const visible = !selectedView?.visibleFieldIds.length || selectedView.visibleFieldIds.includes(field.id); return <div key={field.id}><button onClick={() => void toggleFieldVisibility(field.id)} type="button">{visible ? <Eye /> : <EyeOff />}</button><span><ListFilter /><strong>{field.name}</strong><small>{fieldTypeLabels[field.fieldType]}</small></span><button aria-label={`编辑 ${field.name}`} onClick={() => openFieldEditor(field)} type="button"><Settings2 /></button></div>; })}{!filteredFields.length ? <p className={styles.drawerEmpty}>没有匹配的字段。</p> : null}</div><button className={styles.addFieldButton} onClick={() => { setEditingFieldId(""); setCreateTitle(""); setPanel(null); setCreateKind("field"); }} type="button"><Plus />新增字段</button></div><aside><strong>字段类型</strong>{Object.entries(fieldTypeLabels).map(([type, label]) => <button key={type} onClick={() => { setEditingFieldId(""); setCreateTitle(""); setCreateFieldType(type as FieldType); setPanel(null); setCreateKind("field"); }} type="button"><ListFilter />{label}</button>)}</aside></div> : null}
             {panel === "view-settings" ? <div className={styles.panelBody}><div className={styles.noticeBox}><Eye /><div><strong>{selectedView?.name || "当前视图"}</strong><p>显示 {visibleFields.length}/{fields.length} 个字段，{visibleRecords.length} 条记录，行高为 {selectedView?.rowHeight === "compact" ? "紧凑" : selectedView?.rowHeight === "tall" ? "宽松" : "标准"}。</p></div></div><button onClick={() => setPanel("field-settings")} type="button"><Settings2 />配置字段显隐</button><button onClick={() => setPanel("filter")} type="button"><Filter />配置筛选</button><button onClick={() => setPanel("group")} type="button"><Columns3 />配置分组</button><button onClick={() => setPanel("sort")} type="button"><ArrowUpDown />配置排序</button></div> : null}
             {panel === "import-export" ? <div className={styles.panelBody}>{mode === "table" ? <><input accept=".csv,text/csv" className={styles.hiddenInput} onChange={(event) => { const file = event.target.files?.[0]; if (file) void importRecords(file); event.target.value = ""; }} ref={importInputRef} type="file" />{canWrite ? <button onClick={() => importInputRef.current?.click()} type="button"><Upload />导入 CSV<small>最大 20MB / 最多 2 万行</small></button> : null}<button onClick={exportRecords} type="button"><Download />导出当前视图 CSV<small>按当前视图字段、筛选与排序导出</small></button></> : <p className={styles.panelHint}>请先打开一张多维表格。</p>}</div> : null}
             {panel === "automation" ? <div className={styles.automationPanel}><section className={styles.automationCreate}><strong>新建基础规则</strong><input maxLength={255} onChange={(event) => setAutomationName(event.target.value)} placeholder="例如：新增记录后通知制片" value={automationName} /><select onChange={(event) => setAutomationTrigger(event.target.value as AutomationTrigger)} value={automationTrigger}><option value="manual">手动触发</option><option value="record_created">新增记录</option><option value="record_updated">更新记录</option><option value="field_changed">字段变化</option></select><button className={styles.primaryAction} disabled={panelLoading || !automationName.trim()} onClick={() => void createAutomation()} type="button"><Plus />创建规则</button></section><section className={styles.automationRules}>{automations.map((rule) => <article className={selectedAutomationId === rule.id ? styles.automationRuleActive : undefined} key={rule.id} onClick={() => { setSelectedAutomationId(rule.id); void loadAutomationRuns(rule.id); }}><header><div><strong>{rule.name}</strong><span>{rule.triggerType}</span></div><label><input checked={rule.enabled} onChange={() => void toggleAutomation(rule)} onClick={(event) => event.stopPropagation()} type="checkbox" />{rule.enabled ? "已启用" : "已停用"}</label></header><footer><small>更新于 {formatDate(rule.updatedAt)}</small><button disabled={!rule.enabled || panelLoading} onClick={(event) => { event.stopPropagation(); void runAutomation(rule); }} type="button"><Zap />手动运行</button><button aria-label="删除规则" onClick={(event) => { event.stopPropagation(); void removeAutomation(rule); }} type="button"><Trash2 /></button></footer></article>)}{!panelLoading && !automations.length ? <p className={styles.drawerEmpty}>还没有自动化规则。</p> : null}</section><section className={styles.automationRuns}><header><strong>运行日志</strong><span>{automationRuns.length} 次</span></header>{automationRuns.map((run) => <article key={run.id}><span className={cn(styles.runStatus, styles[`run_${run.status}`])}>{run.status}</span><div><strong>{run.recordId ? `记录 ${run.recordId.slice(0, 8)}` : "手动运行"}</strong><small>{formatDate(run.createdAt)}{run.error ? ` · ${run.error}` : ""}</small></div></article>)}{!automationRuns.length ? <p className={styles.drawerEmpty}>选择规则后查看运行日志。</p> : null}</section></div> : null}
@@ -2694,12 +2929,12 @@ export function KnowledgeWorkspace() {
       {createKind ? (
         <div className={styles.modalBackdrop} role="dialog" aria-modal="true">
           <form className={styles.createDialog} onSubmit={(event) => void createResource(event)}>
-            <header><div><span>灵穹知识库</span><h2>{createKind === "space" ? "新建知识空间" : createKind === "page" ? "新建文档" : createKind === "table" ? "新建多维表格" : createKind === "field" ? "新增字段" : "新建视图"}</h2></div><button aria-label="关闭" onClick={() => setCreateKind(null)} type="button"><X /></button></header>
+            <header><div><span>灵穹知识库</span><h2>{createKind === "space" ? "新建知识空间" : createKind === "page" ? "新建文档" : createKind === "table" ? "新建多维表格" : createKind === "field" ? editingFieldId ? "编辑字段" : "新增字段" : "新建视图"}</h2></div><button aria-label="关闭" onClick={() => { setCreateKind(null); setEditingFieldId(""); }} type="button"><X /></button></header>
             <label>名称<input autoFocus maxLength={255} onChange={(event) => setCreateTitle(event.target.value)} placeholder="输入名称" value={createTitle} /></label>
             {createKind === "space" || createKind === "table" ? <label>说明<textarea maxLength={2000} onChange={(event) => setCreateDescription(event.target.value)} placeholder="简要说明用途" value={createDescription} /></label> : null}
-            {createKind === "field" ? <label>字段类型<select onChange={(event) => setCreateFieldType(event.target.value as FieldType)} value={createFieldType}>{Object.entries(fieldTypeLabels).map(([type, label]) => <option key={type} value={type}>{label}</option>)}</select></label> : null}
+            {createKind === "field" ? <><label>字段类型<select disabled={fields.find((field) => field.id === editingFieldId)?.config.primary === true} onChange={(event) => setCreateFieldType(event.target.value as FieldType)} value={createFieldType}>{Object.entries(fieldTypeLabels).map(([type, label]) => <option key={type} value={type}>{label}</option>)}</select></label>{["select", "multi_select"].includes(createFieldType) ? <label>选项（用逗号或换行分隔）<textarea onChange={(event) => setCreateFieldOptions(event.target.value)} placeholder="待处理、进行中、已完成" value={createFieldOptions} /></label> : null}{createFieldType === "formula" ? <label>公式表达式<textarea onChange={(event) => setCreateFieldFormula(event.target.value)} placeholder="例如：{单价} * {数量}" value={createFieldFormula} /></label> : null}{["relation", "lookup"].includes(createFieldType) ? <label>关联数据表<select onChange={(event) => setCreateFieldRelationTableId(event.target.value)} value={createFieldRelationTableId || selectedTableId}>{tables.map((table) => <option key={table.id} value={table.id}>{table.title}</option>)}</select></label> : null}<label className={styles.checkboxLabel}><input checked={createFieldRequired} disabled={fields.find((field) => field.id === editingFieldId)?.config.primary === true} onChange={(event) => setCreateFieldRequired(event.target.checked)} type="checkbox" />设为必填字段</label></> : null}
             {createKind === "view" ? <label>视图类型<select onChange={(event) => setCreateViewType(event.target.value as ViewType)} value={createViewType}>{Object.entries(viewTypeLabels).map(([type, label]) => <option key={type} value={type}>{label}</option>)}</select></label> : null}
-            <footer><button onClick={() => setCreateKind(null)} type="button">取消</button><button className={styles.primaryAction} disabled={saving || !createTitle.trim()} type="submit">{saving ? <Loader2 className={styles.spin} /> : <Plus />}创建</button></footer>
+            <footer><button onClick={() => { setCreateKind(null); setEditingFieldId(""); }} type="button">取消</button><button className={styles.primaryAction} disabled={saving || !createTitle.trim()} type="submit">{saving ? <Loader2 className={styles.spin} /> : editingFieldId ? <Settings2 /> : <Plus />}{editingFieldId ? "保存配置" : "创建"}</button></footer>
           </form>
         </div>
       ) : null}
