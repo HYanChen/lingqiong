@@ -15,6 +15,26 @@
     <script>
       window._CONFIG = {};
     </script>
+    <script>
+      // 运营后台不使用离线缓存。主动注销历史版本注册的 Service Worker，
+      // 防止发布后继续显示已经作废的旧后台界面与旧路由。
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.getRegistrations().then(function (registrations) {
+            registrations.forEach(function (registration) {
+              registration.unregister();
+            });
+          });
+          if ('caches' in window) {
+            caches.keys().then(function (keys) {
+              keys.forEach(function (key) {
+                caches.delete(key);
+              });
+            });
+          }
+        });
+      }
+    </script>
   </head>
   <body>
     <script>

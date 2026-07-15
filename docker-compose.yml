@@ -51,6 +51,7 @@ services:
     volumes:
       - ./vendor/jeecg-boot/jeecg-boot/db/jeecgboot-mysql-5.7.sql:/bootstrap/jeecg.sql:ro
       - ./vendor/jeecg-boot/jeecg-boot/jeecg-module-system/jeecg-system-start/src/main/resources/flyway/sql/mysql/V3.9.3_9__lingqiong_operations.sql:/bootstrap/lingqiong.sql:ro
+      - ./vendor/jeecg-boot/jeecg-boot/jeecg-module-system/jeecg-system-start/src/main/resources/flyway/sql/mysql/V3.9.3_10__lingqiong_single_admin.sql:/bootstrap/lingqiong-single-admin.sql:ro
     command:
       - sh
       - -c
@@ -60,6 +61,7 @@ services:
           sed 's/`jeecg-boot`/`jeecg_boot`/g' /bootstrap/jeecg.sql | mysql --default-character-set=utf8mb4 -hmysql -uroot
         fi
         mysql --default-character-set=utf8mb4 -hmysql -uroot jeecg_boot < /bootstrap/lingqiong.sql
+        mysql --default-character-set=utf8mb4 -hmysql -uroot jeecg_boot < /bootstrap/lingqiong-single-admin.sql
 
   jeecg-redis:
     image: redis:7.4-alpine

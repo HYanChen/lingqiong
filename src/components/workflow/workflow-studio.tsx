@@ -11,7 +11,12 @@ import {
   Sparkles
 } from "lucide-react";
 
-import type { MediaMap, PipelineStep, Service, Work } from "@/content/site";
+import {
+  siteCopyLines,
+  siteCopyRows,
+  siteCopyValue,
+  type SiteData
+} from "@/content/site";
 import { getIcon } from "@/lib/icon-map";
 import { cn } from "@/lib/utils";
 
@@ -29,27 +34,8 @@ type StudioCard = {
   tags: string[];
 };
 
-const categories = [
-  "全部",
-  "AI影视流程",
-  "专业影视",
-  "短剧漫剧",
-  "文旅展陈",
-  "商业广告",
-  "TV工具箱"
-];
-
-function buildCards({
-  media,
-  services,
-  steps,
-  works
-}: {
-  media: MediaMap;
-  services: Service[];
-  steps: PipelineStep[];
-  works: Work[];
-}): StudioCard[] {
+function buildCards(data: SiteData): StudioCard[] {
+  const { media, services, pipelineSteps: steps, works } = data;
   const stepImages = [
     media.workflow,
     media.spark,
@@ -72,10 +58,10 @@ function buildCards({
   ];
 
   const workflowCards = steps.map((step, index) => ({
-    actionLabel: "用此流程创建项目",
+    actionLabel: siteCopyValue(data, "workflow.actions.process", "用此流程创建项目"),
     id: `step-${step.eyebrow}`,
     title: `${step.eyebrow} ${step.title}`,
-    creator: "战纪宇宙生产线",
+    creator: siteCopyValue(data, "workflow.creator.pipeline", "战纪宇宙生产线"),
     category: stepCategories[index] ?? "AI影视流程",
     href: "/projects",
     image: stepImages[index] ?? media.workflow,
@@ -85,24 +71,24 @@ function buildCards({
     tags: ["流程节点", step.title]
   }));
   const apiNodeCard = {
-    actionLabel: "进入模型网关",
+    actionLabel: siteCopyValue(data, "workflow.actions.api", "进入模型网关"),
     id: "new-api-model-node",
-    title: "灵穹 API 模型节点",
-    creator: "战纪宇宙生产线",
+    title: siteCopyValue(data, "workflow.api.title", "灵穹 API 模型节点"),
+    creator: siteCopyValue(data, "workflow.creator.pipeline", "战纪宇宙生产线"),
     category: "AI影视流程",
     href: "/api",
     image: media.workflow,
-    summary: "把灵穹 API 作为生产线里的模型能力节点，读取已配置渠道和模型，供画布节点直接调用。",
-    process: "模型池同步 / 节点选择 / 服务端调用 / 日志回收",
+    summary: siteCopyValue(data, "workflow.api.description"),
+    process: siteCopyValue(data, "workflow.api.process"),
     badge: "模型网关",
     tags: ["灵穹 API", "模型节点", "统一网关"]
   };
 
   const serviceCards = services.map((service, index) => ({
-    actionLabel: "咨询此服务",
+    actionLabel: siteCopyValue(data, "workflow.actions.service", "咨询此服务"),
     id: `service-${index}`,
     title: service.title,
-    creator: "灵穹商业制作",
+    creator: siteCopyValue(data, "workflow.creator.service", "灵穹商业制作"),
     category:
       service.title.includes("短剧") || service.title.includes("漫剧")
         ? "短剧漫剧"
@@ -122,7 +108,7 @@ function buildCards({
   }));
 
   const workCards = works.slice(0, 4).map((work) => ({
-    actionLabel: "查看作品详情",
+    actionLabel: siteCopyValue(data, "workflow.actions.work", "查看作品详情"),
     id: `work-${work.slug}`,
     title: work.title,
     creator: work.category,
@@ -145,22 +131,15 @@ function buildCards({
   return [apiNodeCard, ...workflowCards, ...serviceCards, ...workCards];
 }
 
-export function WorkflowStudio({
-  media,
-  services,
-  steps,
-  works
-}: {
-  media: MediaMap;
-  services: Service[];
-  steps: PipelineStep[];
-  works: Work[];
-}) {
-  const [activeCategory, setActiveCategory] = useState("全部");
+export function WorkflowStudio({ data }: { data: SiteData }) {
+  const { media, pipelineSteps: steps } = data;
+  const categories = siteCopyLines(data, "workflow.categories");
+  const allCategory = categories[0] || "全部";
+  const [activeCategory, setActiveCategory] = useState(allCategory);
   const [query, setQuery] = useState("");
   const cards = useMemo(
-    () => buildCards({ media, services, steps, works }),
-    [media, services, steps, works]
+    () => buildCards(data),
+    [data]
   );
 
   const filteredCards = useMemo(() => {
@@ -168,7 +147,7 @@ export function WorkflowStudio({
 
     return cards.filter((card) => {
       const categoryMatch =
-        activeCategory === "全部" || card.category === activeCategory;
+        activeCategory === allCategory || card.category === activeCategory;
       const text = `${card.title} ${card.creator} ${card.summary} ${card.process} ${card.tags.join(
         " "
       )}`.toLowerCase();
@@ -176,28 +155,21 @@ export function WorkflowStudio({
 
       return categoryMatch && queryMatch;
     });
-  }, [activeCategory, cards, query]);
+  }, [activeCategory, allCategory, cards, query]);
 
-  const banners = [
-    {
-      title: "从创意到成片，一条 AI 影视生产线",
-      kicker: "Production Studio",
-      image: media.workflow,
-      caption: "资产库 / 分镜 / 提示词 / 结果回收"
-    },
-    {
-      title: "战纪宇宙001：《火种》概念流程",
-      kicker: "The Spark",
-      image: media.spark,
-      caption: "旧物线索 / 人物关系 / 竖屏短剧"
-    },
-    {
-      title: "商业项目也能按影视流程交付",
-      kicker: "Business Delivery",
-      image: media.services,
-      caption: "文旅 / 品牌片 / 概念预告"
-    }
-  ];
+  const bannerImages = {
+    workflow: media.workflow,
+    spark: media.spark,
+    services: media.services
+  };
+  const banners = siteCopyRows(data, "workflow.banners").map(
+    ([title, kicker, caption, imageKey]) => ({
+      title,
+      kicker,
+      caption,
+      image: bannerImages[imageKey as keyof typeof bannerImages] || media.workflow
+    })
+  );
 
   return (
     <section className="min-h-screen bg-[#050505] px-4 pb-20 pt-24 md:px-8">
@@ -206,13 +178,13 @@ export function WorkflowStudio({
           <div>
             <div className="inline-flex items-center gap-2 rounded-lg border border-amber-200/20 bg-amber-200/8 px-3 py-2 text-xs font-semibold text-amber-100">
               <Sparkles aria-hidden="true" className="h-4 w-4" />
-              创作生产线大厅
+              {siteCopyValue(data, "workflow.hero.badge", "创作生产线大厅")}
             </div>
             <h1 className="mt-5 text-balance text-4xl font-semibold text-stone-50 md:text-6xl">
-              AI影视生产线
+              {siteCopyValue(data, "workflow.hero.title", "AI影视生产线")}
             </h1>
             <p className="mt-4 max-w-3xl text-pretty text-base leading-8 text-stone-300">
-              像浏览作品库一样浏览生产流程。每一张卡片都是一个可复用的制作节点、服务模板或项目样板。
+              {siteCopyValue(data, "workflow.hero.description")}
             </p>
           </div>
 
@@ -222,13 +194,13 @@ export function WorkflowStudio({
               href="/projects"
             >
               <Plus aria-hidden="true" className="h-4 w-4" />
-              开始生产
+              {siteCopyValue(data, "workflow.hero.primaryLabel", "开始生产")}
             </Link>
             <Link
               className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.045] px-5 py-3 text-sm font-semibold text-stone-100 transition hover:bg-white/10"
               href="/works"
             >
-              查看作品样板
+              {siteCopyValue(data, "workflow.hero.secondaryLabel", "查看作品样板")}
               <ArrowRight aria-hidden="true" className="h-4 w-4" />
             </Link>
           </div>
@@ -289,7 +261,9 @@ export function WorkflowStudio({
             ))}
           </div>
           <label className="relative block w-full lg:w-80">
-            <span className="sr-only">搜索生产流程、服务或作品</span>
+            <span className="sr-only">
+              {siteCopyValue(data, "workflow.searchLabel", "搜索生产流程、服务或作品")}
+            </span>
             <Search
               aria-hidden="true"
               className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-500"
@@ -297,15 +271,19 @@ export function WorkflowStudio({
             <input
               className="h-11 w-full rounded-lg border border-white/10 bg-white/[0.035] pl-10 pr-3 text-sm text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-cyan-200/60"
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="请输入搜索内容"
+              placeholder={siteCopyValue(data, "workflow.searchPlaceholder", "请输入搜索内容")}
               value={query}
             />
           </label>
         </div>
 
         <div className="mt-6 flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-stone-50">Production Show</h2>
-          <p className="text-sm text-stone-500">{filteredCards.length} 个生产卡片</p>
+          <h2 className="text-xl font-semibold text-stone-50">
+            {siteCopyValue(data, "workflow.listTitle", "Production Show")}
+          </h2>
+          <p className="text-sm text-stone-500">
+            {filteredCards.length} {siteCopyValue(data, "workflow.cardCountSuffix", "个生产卡片")}
+          </p>
         </div>
 
         <div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -377,7 +355,7 @@ export function WorkflowStudio({
 
         {!filteredCards.length ? (
           <div className="mt-8 rounded-lg border border-white/10 bg-white/[0.035] p-8 text-center text-sm text-stone-400">
-            没有找到匹配的生产卡片。
+            {siteCopyValue(data, "workflow.empty", "没有找到匹配的生产卡片。")}
           </div>
         ) : null}
       </div>

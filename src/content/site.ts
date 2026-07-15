@@ -95,6 +95,14 @@ export type TeamMember = {
   slug: string;
 };
 
+export type SiteCopyEntry = {
+  group: string;
+  key: string;
+  label: string;
+  multiline?: boolean;
+  value: string;
+};
+
 export type SiteData = {
   brand: Brand;
   company: Company;
@@ -106,6 +114,7 @@ export type SiteData = {
   services: Service[];
   teamMembers: TeamMember[];
   proofPoints: string[];
+  siteCopy: SiteCopyEntry[];
 };
 
 const defaultMedia: MediaMap = {
@@ -116,6 +125,167 @@ const defaultMedia: MediaMap = {
   generations: "/media/universe-generations.png",
   services: "/media/services-studio.png"
 };
+
+export const defaultSiteCopy: SiteCopyEntry[] = [
+  { group: "全局", key: "global.header.worksLabel", label: "页头作品按钮", value: "查看作品" },
+  { group: "全局", key: "global.cta.eyebrow", label: "全局合作条眉题", value: "cooperation" },
+  { group: "全局", key: "global.cta.title", label: "全局合作条标题", multiline: true, value: "从一个故事，进入一条可交付的 AI 影视生产线" },
+  { group: "全局", key: "global.cta.description", label: "全局合作条说明", multiline: true, value: "可先从概念预告、项目样片或资产库搭建开始，再推进短剧、文旅宣传片、品牌片和 IP 孵化。" },
+  { group: "全局", key: "global.cta.primaryLabel", label: "全局合作主按钮", value: "商务咨询" },
+  { group: "全局", key: "global.cta.primaryHref", label: "全局合作主按钮链接", value: "/services#contact" },
+  { group: "全局", key: "global.cta.secondaryLabel", label: "全局合作次按钮", value: "查看生产线" },
+  { group: "全局", key: "global.cta.secondaryHref", label: "全局合作次按钮链接", value: "/workflow" },
+  { group: "全局", key: "global.footer.description", label: "页脚品牌说明", multiline: true, value: "原创 AI 影视宇宙与灵穹制作平台的统一入口，用于展示作品、承接项目并沉淀制作资产。" },
+  { group: "全局", key: "global.footer.highlight1Title", label: "页脚亮点一标题", value: "概念展示" },
+  { group: "全局", key: "global.footer.highlight1Body", label: "页脚亮点一说明", multiline: true, value: "页面中的概念图、样板和流程说明用于官网展示与招商沟通。" },
+  { group: "全局", key: "global.footer.highlight2Title", label: "页脚亮点二标题", value: "状态保守" },
+  { group: "全局", key: "global.footer.highlight2Body", label: "页脚亮点二说明", multiline: true, value: "《火种》及相关作品以页面标注状态为准，不伪造上线数据。" },
+  { group: "全局", key: "global.footer.highlight3Title", label: "页脚亮点三标题", value: "统一平台" },
+  { group: "全局", key: "global.footer.highlight3Body", label: "页脚亮点三说明", multiline: true, value: "项目、生产管理、灵穹 API 与知识库通过统一登录进入。" },
+
+  { group: "首页", key: "home.hero.primaryLabel", label: "首屏主按钮", value: "查看概念作品" },
+  { group: "首页", key: "home.hero.primaryHref", label: "首屏主按钮链接", value: "/works" },
+  { group: "首页", key: "home.hero.secondaryLabel", label: "首屏次按钮", value: "商务咨询" },
+  { group: "首页", key: "home.hero.secondaryHref", label: "首屏次按钮链接", value: "/services#contact" },
+  { group: "首页", key: "home.gateway.eyebrow", label: "统一入口眉题", value: "unified gateway" },
+  { group: "首页", key: "home.gateway.title", label: "统一入口标题", multiline: true, value: "一个官网入口，承接 IP、生产线和模型能力" },
+  { group: "首页", key: "home.gateway.description", label: "统一入口说明", multiline: true, value: "访客看到的是战纪宇宙的作品与审美；创作者进入项目、画布和技能工作台；灵穹 API 与知识库在底层支撑模型调用、内容沉淀和交付复用。" },
+  { group: "首页", key: "home.gateway.layers", label: "统一入口三层配置", multiline: true, value: "IP 官网层|用战纪宇宙承接对外传播，把世界观、作品状态和服务样板集中展示。|/works|查看作品|MonitorPlay\n创作生产层|把项目、剧集、资产、分镜、配音和合成收进同一个创作者工作台。|/projects|进入项目|Clapperboard\n模型知识层|灵穹 API、知识库和 Skill 工作台为生产线提供模型调用与经验沉淀。|/skills|进入工作台|WandSparkles" },
+  { group: "首页", key: "home.modules.eyebrow", label: "平台模块眉题", value: "platform modules" },
+  { group: "首页", key: "home.modules.title", label: "平台模块标题", multiline: true, value: "把官网、创作和模型能力收进一个平台" },
+  { group: "首页", key: "home.modules.description", label: "平台模块说明", multiline: true, value: "官网不是孤立展示页，而是统一平台的对外入口。用户登录一次后，可以进入项目、生产管理、API、知识库和 Skill 工作台，所有能力围绕同一套影视生产资料流动。" },
+  { group: "首页", key: "home.modules.noteTitle", label: "平台模块提示标题", value: "统一入口原则" },
+  { group: "首页", key: "home.modules.noteBody", label: "平台模块提示说明", multiline: true, value: "官网面向展示与招商，登录面向创作者协作；各子系统通过统一会话进入。" },
+  { group: "首页", key: "home.modules.products", label: "平台产品配置", multiline: true, value: "我的项目|创建、编辑、导出和管理个人 AI 影视项目，项目数据按用户归属保存。|/projects|进入项目|Clapperboard\n生产管理|在项目内完成剧集、素材、分镜、配音和合成的连续生产管理。|/workflow|查看生产线|Boxes\n灵穹 API|统一管理模型渠道、令牌和调用能力，供画布、Skill 和生产线使用。|/api|进入 API|WandSparkles\n灵穹知识库|沉淀世界观、制作规范、提示词经验和项目交付文档。|/knowledge|查看知识库|BookOpen" },
+  { group: "首页", key: "home.position.eyebrow", label: "品牌定位眉题", value: "brand position" },
+  { group: "首页", key: "home.position.title", label: "品牌定位标题", multiline: true, value: "以一个宇宙，承载一条 AI 影视生产线" },
+  { group: "首页", key: "home.position.description", label: "品牌定位说明", multiline: true, value: "战纪宇宙不是单个短片项目，而是一套可持续更新的原创影像宇宙。IP 负责出圈与审美证明，灵穹的 AI 影视制作服务负责把策划、资产、分镜和视频交付变成可复用能力。" },
+  { group: "首页", key: "home.entries.eyebrow", label: "访问路径眉题", value: "entry paths" },
+  { group: "首页", key: "home.entries.title", label: "访问路径标题", value: "一套官网，三种进入方式" },
+  { group: "首页", key: "home.entries.description", label: "访问路径说明", multiline: true, value: "不同访问者看到同一个品牌入口，但进入路径不同：公开页面负责展示，登录后的工作台负责创作，模型与知识库负责支撑生产。" },
+  { group: "首页", key: "home.entries.items", label: "访问路径配置", multiline: true, value: "观众与合作方|先看世界观与概念作品，理解战纪宇宙的审美、题材和项目状态。|/works|查看作品\n创作者|登录后进入我的项目，选择类型、画面比例、风格和封面，继续进入生产工作台。|/projects|创建项目\n制作团队|用灵穹 API、Skill 工作台和知识库串联模型调用、流程复用和交付记录。|/skills|进入工作台" },
+  { group: "首页", key: "home.spark.kicker", label: "火种图片眉题", value: "first project" },
+  { group: "首页", key: "home.spark.imageTitle", label: "火种图片标题", value: "战纪宇宙001：《火种》" },
+  { group: "首页", key: "home.spark.eyebrow", label: "火种内容眉题", value: "the spark" },
+  { group: "首页", key: "home.spark.title", label: "火种内容标题", multiline: true, value: "先把第一部做成能展示、能发布、能招商的样片包" },
+  { group: "首页", key: "home.spark.description", label: "火种内容说明", multiline: true, value: "一枚旧军功章，一本战地日记，一个后代的现实选择。《火种》是战纪宇宙的第一部代表项目，当前定位为开发中和概念样片阶段。" },
+  { group: "首页", key: "home.spark.deliverables", label: "火种交付项", multiline: true, value: "IP 圣经 V1\n24 集分集大纲\n前 3 集剧本\n角色与场景资产库" },
+  { group: "首页", key: "home.spark.buttonLabel", label: "火种按钮", value: "进入世界观" },
+  { group: "首页", key: "home.spark.buttonHref", label: "火种按钮链接", value: "/universe" },
+  { group: "首页", key: "home.delivery.eyebrow", label: "交付路径眉题", value: "delivery path" },
+  { group: "首页", key: "home.delivery.title", label: "交付路径标题", multiline: true, value: "从一个想法，到一套可展示的交付包" },
+  { group: "首页", key: "home.delivery.description", label: "交付路径说明", multiline: true, value: "每一次合作都先落到可验证的资产和样片上，避免只停留在概念口号里。官网展示、项目工作台、模型调用和知识沉淀会围绕同一套项目资料持续更新。" },
+  { group: "首页", key: "home.delivery.primaryLabel", label: "交付路径主按钮", value: "开始商务咨询" },
+  { group: "首页", key: "home.delivery.primaryHref", label: "交付路径主按钮链接", value: "/services#contact" },
+  { group: "首页", key: "home.delivery.secondaryLabel", label: "交付路径次按钮", value: "查看项目工作台" },
+  { group: "首页", key: "home.delivery.secondaryHref", label: "交付路径次按钮链接", value: "/projects" },
+  { group: "首页", key: "home.delivery.steps", label: "交付路径步骤", multiline: true, value: "01|确定叙事资产|明确故事、受众、风格、画面比例和首批可交付物。\n02|搭建项目母档|沉淀人物、场景、物件、提示词和镜头表，形成可继续更新的资产库。\n03|生成概念样片|通过灵穹 API 与项目任务队列完成首轮图片、视频和修订回收。\n04|组织招商交付|输出作品页、概念预告、宣发切片和商务沟通材料。" },
+  { group: "首页", key: "home.workflow.eyebrow", label: "生产线眉题", value: "workflow" },
+  { group: "首页", key: "home.workflow.title", label: "生产线标题", value: "AI 影视生产线" },
+  { group: "首页", key: "home.workflow.description", label: "生产线说明", multiline: true, value: "从策划、剧本、资产库、分镜到提示词和成片交付，每一步都留下可复用产物。" },
+  { group: "首页", key: "home.workflow.buttonLabel", label: "生产线按钮", value: "查看完整流程" },
+  { group: "首页", key: "home.works.eyebrow", label: "首页作品眉题", value: "works" },
+  { group: "首页", key: "home.works.title", label: "首页作品标题", value: "概念作品与服务样板" },
+  { group: "首页", key: "home.works.description", label: "首页作品说明", multiline: true, value: "这里展示当前已经整理的概念资产、开发中作品与服务样板；每个条目都明确标注真实状态。" },
+  { group: "首页", key: "home.works.buttonLabel", label: "首页作品按钮", value: "查看灵穹知识库" },
+
+  { group: "世界观", key: "universe.seoTitle", label: "SEO 标题", value: "世界观" },
+  { group: "世界观", key: "universe.seoDescription", label: "SEO 描述", multiline: true, value: "战纪宇宙的五代叙事、第一部《火种》和长期更新结构。" },
+  { group: "世界观", key: "universe.hero.eyebrow", label: "首屏眉题", value: "universe" },
+  { group: "世界观", key: "universe.hero.title", label: "首屏标题", multiline: true, value: "五代叙事，一条可长期更新的影像宇宙" },
+  { group: "世界观", key: "universe.hero.description", label: "首屏说明", multiline: true, value: "战纪宇宙以家族记忆、时代选择和新一代成长为主线，从《火种》开始，逐步扩展成可持续更新的原创 AI 影视宇宙。" },
+  { group: "世界观", key: "universe.timeline.eyebrow", label: "时间线眉题", value: "timeline" },
+  { group: "世界观", key: "universe.timeline.title", label: "时间线标题", value: "从火种到未来" },
+  { group: "世界观", key: "universe.timeline.description", label: "时间线说明", multiline: true, value: "五代叙事不是简单年代划分，而是为了让每一部作品都有清晰的精神位置、人物压力和商业开发方向。" },
+  { group: "世界观", key: "universe.spark.eyebrow", label: "首个项目眉题", value: "first project" },
+  { group: "世界观", key: "universe.spark.title", label: "首个项目标题", value: "战纪宇宙001：《火种》" },
+  { group: "世界观", key: "universe.spark.description", label: "首个项目说明", multiline: true, value: "《火种》以旧物作为叙事入口，用祖辈记忆和后代成长连接过去与当下。项目当前处于开发中和概念样片阶段，适合作为官网首个代表项目展示。" },
+  { group: "世界观", key: "universe.spark.facts", label: "首个项目信息卡", multiline: true, value: "叙事锚点|军功章、战地日记、后代入伍选择\n内容形态|竖屏短剧、概念预告、宣发切片\n当前状态|开发中 / 概念样片阶段\n核心产物|世界观、人物关系、资产库、分镜提示词" },
+  { group: "世界观", key: "universe.assets.eyebrow", label: "资产逻辑眉题", value: "asset logic" },
+  { group: "世界观", key: "universe.assets.title", label: "资产逻辑标题", value: "让世界观成为可复用资产" },
+  { group: "世界观", key: "universe.assets.description", label: "资产逻辑说明", multiline: true, value: "战纪宇宙的长期开发会把人物、时代、物件、场景和声音持续沉淀为资产，而不是每次从空白重新开始。" },
+  { group: "世界观", key: "universe.assets.items", label: "资产逻辑卡片", multiline: true, value: "人物谱系|建立祖辈、父辈、当代青年和未来支线人物关系，保证系列更新时人物动机清晰。\n时代场景|把村庄、城市、展馆、训练场和虚拟影棚等场景沉淀成统一视觉语言。\n核心物件|用日记、奖章、照片、旧箱子和投影设备等物件承担叙事记忆。" },
+
+  { group: "作品", key: "works.seoTitle", label: "SEO 标题", value: "作品" },
+  { group: "作品", key: "works.seoDescription", label: "SEO 描述", multiline: true, value: "战纪宇宙概念作品、AI 影像样板和服务模板。" },
+  { group: "作品", key: "works.hero.eyebrow", label: "首屏眉题", value: "works library" },
+  { group: "作品", key: "works.hero.title", label: "首屏标题", value: "作品展示与概念样板" },
+  { group: "作品", key: "works.hero.description", label: "首屏说明", multiline: true, value: "这里汇集战纪宇宙的开发中项目、概念作品与服务样板。每个条目都标注当前状态、内容形态和可交付范围。" },
+  { group: "作品", key: "works.featured.eyebrow", label: "重点作品眉题", value: "featured" },
+  { group: "作品", key: "works.featured.primaryLabel", label: "重点作品主按钮", value: "进入世界观" },
+  { group: "作品", key: "works.featured.secondaryLabel", label: "重点作品次按钮", value: "商务咨询" },
+  { group: "作品", key: "works.library.eyebrow", label: "作品库眉题", value: "filter" },
+  { group: "作品", key: "works.library.title", label: "作品库标题", value: "概念作品库" },
+  { group: "作品", key: "works.library.description", label: "作品库说明", multiline: true, value: "按战纪宇宙、概念预告、短剧漫剧、文旅宣传和品牌影像组织内容。点击作品卡片可查看状态、内容形态和可交付资产。" },
+
+  { group: "服务", key: "services.seoTitle", label: "SEO 标题", value: "服务" },
+  { group: "服务", key: "services.seoDescription", label: "SEO 描述", multiline: true, value: "灵穹承接 AI 影视制作、概念预告、短剧漫剧、文旅宣传和原创 IP 孵化。" },
+  { group: "服务", key: "services.hero.eyebrow", label: "首屏眉题", value: "services" },
+  { group: "服务", key: "services.hero.title", label: "首屏标题", value: "AI 影视制作与 IP 孵化服务" },
+  { group: "服务", key: "services.hero.description", label: "首屏说明", multiline: true, value: "战纪宇宙负责展示原创 IP 与审美能力，灵穹负责把这套 AI 影视方法转化为可承接、可交付、可复用的商业服务。" },
+  { group: "服务", key: "services.offers.eyebrow", label: "服务列表眉题", value: "offers" },
+  { group: "服务", key: "services.offers.title", label: "服务列表标题", value: "可从这些服务切入" },
+  { group: "服务", key: "services.offers.description", label: "服务列表说明", multiline: true, value: "从小样片开始，也可以从完整 IP 母档或商业项目交付包开始。所有服务都围绕可展示、可发布、可招商三个结果设计。" },
+  { group: "服务", key: "services.route.eyebrow", label: "交付路径眉题", value: "service route" },
+  { group: "服务", key: "services.route.title", label: "交付路径标题", multiline: true, value: "一条更适合商业项目的交付路径" },
+  { group: "服务", key: "services.route.description", label: "交付路径说明", multiline: true, value: "服务不是单次出图，而是把可复用的制作资产交给项目继续生长。每个阶段都对应可检查的文档、画面或交付物。" },
+  { group: "服务", key: "services.route.items", label: "交付路径步骤", multiline: true, value: "需求判断|确认是概念预告、短剧生产包、文旅影像、品牌片还是原创 IP 孵化。\n母档搭建|梳理故事、人物、资产、视觉风格、镜头结构和模型调用方式。\n样片生成|围绕关键镜头完成图片、视频、声音与剪辑节奏的首轮验证。\n交付复用|整理成片、提示词、资产库、修订记录和后续生产建议。" },
+  { group: "服务", key: "services.contact.eyebrow", label: "联系区眉题", value: "contact" },
+  { group: "服务", key: "services.contact.title", label: "联系区标题", value: "商务咨询与合作" },
+  { group: "服务", key: "services.contact.description", label: "联系区说明", multiline: true, value: "可直接通过邮箱或电话说明项目类型、目标时长和首批交付物。已有制作资料的合作方，也可以先进入创作台整理项目母档。" },
+  { group: "服务", key: "services.contact.emailLabel", label: "邮箱标签", value: "合作邮箱" },
+  { group: "服务", key: "services.contact.phoneLabel", label: "电话标签", value: "电话" },
+  { group: "服务", key: "services.contact.wechatLabel", label: "微信标签", value: "微信" },
+  { group: "服务", key: "services.contact.wechatFallback", label: "微信未配置提示", value: "请先通过邮箱或电话联系" },
+  { group: "服务", key: "services.contact.primaryLabel", label: "联系区主按钮", value: "先看作品样板" },
+  { group: "服务", key: "services.contact.secondaryLabel", label: "联系区次按钮", value: "整理项目资料" },
+
+  { group: "关于", key: "about.seoTitle", label: "SEO 标题", value: "关于" },
+  { group: "关于", key: "about.seoDescription", label: "SEO 描述", multiline: true, value: "战纪宇宙由灵穹打造，面向原创 AI 影视 IP 与商业影像服务。" },
+  { group: "关于", key: "about.hero.eyebrow", label: "首屏眉题", value: "about" },
+  { group: "关于", key: "about.hero.title", label: "首屏标题", multiline: true, value: "由灵穹打造的原创 AI 影视宇宙" },
+  { group: "关于", key: "about.hero.description", label: "首屏说明", multiline: true, value: "战纪宇宙是对外 IP 品牌，灵穹是背后的 AI 影视制作与 IP 孵化服务主体。两者分工清晰：一个负责出圈，一个负责交付。" },
+  { group: "关于", key: "about.brand.eyebrow", label: "品牌公司眉题", value: "brand and company" },
+  { group: "关于", key: "about.brand.title", label: "品牌公司标题", value: "品牌在前，公司在后" },
+  { group: "关于", key: "about.brand.description", label: "品牌公司说明", multiline: true, value: "战纪宇宙面向观众、平台和合作方展示原创 IP 的长期价值；长沙灵穹数字科技有限公司面向客户提供 AI 影像策划、资产库、分镜、提示词和样片交付。" },
+  { group: "关于", key: "about.brand.brandLabel", label: "对外品牌标签", value: "对外品牌" },
+  { group: "关于", key: "about.brand.companyLabel", label: "公司主体标签", value: "公司主体" },
+  { group: "关于", key: "about.brand.roleLabel", label: "业务方向标签", value: "业务方向" },
+  { group: "关于", key: "about.brand.cooperationLabel", label: "合作入口标签", value: "合作入口" },
+  { group: "关于", key: "about.brand.cooperationValue", label: "合作入口内容", value: "商务咨询页统一承接" },
+  { group: "关于", key: "about.team.eyebrow", label: "团队眉题", value: "team" },
+  { group: "关于", key: "about.team.title", label: "团队标题", value: "团队与顾问" },
+  { group: "关于", key: "about.team.description", label: "团队说明", multiline: true, value: "团队按内容、技术、运营与生产分工协作。公开信息只呈现已经确认的姓名、岗位与履历，避免用未核实资料包装团队。" },
+  { group: "关于", key: "about.team.empty", label: "团队空状态", value: "团队资料正在整理中。" },
+  { group: "关于", key: "about.principles.eyebrow", label: "工作方式眉题", value: "working principles" },
+  { group: "关于", key: "about.principles.title", label: "工作方式标题", value: "我们的工作方式" },
+  { group: "关于", key: "about.principles.description", label: "工作方式说明", multiline: true, value: "灵穹把原创内容开发和商业制作服务放在同一条资产化生产线上：作品证明审美，流程保障交付，真实状态建立长期信任。" },
+  { group: "关于", key: "about.principles.items", label: "工作方式卡片", multiline: true, value: "原创 IP 长期开发\n制作资产持续沉淀\n服务交付可以复用\n作品状态真实透明" },
+
+  { group: "生产线", key: "workflow.seoTitle", label: "SEO 标题", value: "AI 影视生产线" },
+  { group: "生产线", key: "workflow.seoDescription", label: "SEO 描述", multiline: true, value: "战纪宇宙和灵穹的 AI 影视生产流程，从创意到交付。" },
+  { group: "生产线", key: "workflow.hero.badge", label: "大厅标签", value: "创作生产线大厅" },
+  { group: "生产线", key: "workflow.hero.title", label: "大厅标题", value: "AI影视生产线" },
+  { group: "生产线", key: "workflow.hero.description", label: "大厅说明", multiline: true, value: "像浏览作品库一样浏览生产流程。每一张卡片都是一个可复用的制作节点、服务模板或项目样板。" },
+  { group: "生产线", key: "workflow.hero.primaryLabel", label: "大厅主按钮", value: "开始生产" },
+  { group: "生产线", key: "workflow.hero.secondaryLabel", label: "大厅次按钮", value: "查看作品样板" },
+  { group: "生产线", key: "workflow.categories", label: "生产线分类", multiline: true, value: "全部\nAI影视流程\n专业影视\n短剧漫剧\n文旅展陈\n商业广告\nTV工具箱" },
+  { group: "生产线", key: "workflow.banners", label: "生产线横幅", multiline: true, value: "从创意到成片，一条 AI 影视生产线|Production Studio|资产库 / 分镜 / 提示词 / 结果回收|workflow\n战纪宇宙001：《火种》概念流程|The Spark|旧物线索 / 人物关系 / 竖屏短剧|spark\n商业项目也能按影视流程交付|Business Delivery|文旅 / 品牌片 / 概念预告|services" },
+  { group: "生产线", key: "workflow.searchLabel", label: "搜索无障碍标签", value: "搜索生产流程、服务或作品" },
+  { group: "生产线", key: "workflow.searchPlaceholder", label: "搜索框提示", value: "请输入搜索内容" },
+  { group: "生产线", key: "workflow.listTitle", label: "卡片列表标题", value: "Production Show" },
+  { group: "生产线", key: "workflow.empty", label: "搜索空状态", value: "没有找到匹配的生产卡片。" },
+  { group: "生产线", key: "workflow.api.title", label: "API 节点标题", value: "灵穹 API 模型节点" },
+  { group: "生产线", key: "workflow.api.description", label: "API 节点说明", multiline: true, value: "把灵穹 API 作为生产线里的模型能力节点，读取已配置渠道和模型，供画布节点直接调用。" },
+  { group: "生产线", key: "workflow.api.process", label: "API 节点流程", value: "模型池同步 / 节点选择 / 服务端调用 / 日志回收" },
+  { group: "生产线", key: "workflow.actions.process", label: "流程卡按钮", value: "用此流程创建项目" },
+  { group: "生产线", key: "workflow.actions.service", label: "服务卡按钮", value: "咨询此服务" },
+  { group: "生产线", key: "workflow.actions.work", label: "作品卡按钮", value: "查看作品详情" },
+  { group: "生产线", key: "workflow.actions.api", label: "API 卡按钮", value: "进入模型网关" },
+  { group: "生产线", key: "workflow.creator.pipeline", label: "生产线创建者", value: "战纪宇宙生产线" },
+  { group: "生产线", key: "workflow.creator.service", label: "服务创建者", value: "灵穹商业制作" },
+  { group: "生产线", key: "workflow.cardCountSuffix", label: "卡片计数后缀", value: "个生产卡片" }
+];
 
 export const defaultSiteData: SiteData = {
   brand: {
@@ -433,8 +603,44 @@ export const defaultSiteData: SiteData = {
     "作品开发与服务现金流分离",
     "资产库驱动的持续更新",
     "概念样片到商务交付"
-  ]
+  ],
+  siteCopy: defaultSiteCopy
 };
+
+export function siteCopyValue(
+  data: Pick<SiteData, "siteCopy">,
+  key: string,
+  fallback = ""
+) {
+  return data.siteCopy.find((entry) => entry.key === key)?.value ?? fallback;
+}
+
+export function siteCopyLines(
+  data: Pick<SiteData, "siteCopy">,
+  key: string,
+  fallback: string[] = []
+) {
+  const value = siteCopyValue(data, key);
+
+  return value
+    ? value
+        .split(/\r?\n/u)
+        .map((line) => line.trim())
+        .filter(Boolean)
+    : fallback;
+}
+
+export function siteCopyRows(
+  data: Pick<SiteData, "siteCopy">,
+  key: string,
+  fallback: string[][] = []
+) {
+  const lines = siteCopyLines(data, key);
+
+  return lines.length
+    ? lines.map((line) => line.split("|").map((part) => part.trim()))
+    : fallback;
+}
 
 export const { brand, company, navItems, proofPoints } = defaultSiteData;
 export const media = defaultSiteData.media;

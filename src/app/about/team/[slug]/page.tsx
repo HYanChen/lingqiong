@@ -229,7 +229,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
         ) : null}
       </article>
 
-      <CtaBand />
+      <CtaBand data={data} />
     </>
   );
 }

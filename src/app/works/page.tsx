@@ -7,30 +7,35 @@ import { CtaBand } from "@/components/cta-band";
 import { PageHero } from "@/components/page-hero";
 import { SectionHeading } from "@/components/section-heading";
 import { WorkGallery } from "@/components/work-gallery";
+import { siteCopyValue } from "@/content/site";
 import {
   getPlatformProjectTypeCategories,
   getPlatformSiteData
 } from "@/lib/platform-api-client";
 
-export const metadata: Metadata = {
-  title: "作品",
-  description: "战纪宇宙概念作品、AI 影像样板和服务模板。"
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const data = await getPlatformSiteData();
+  return {
+    title: siteCopyValue(data, "works.seoTitle", "作品"),
+    description: siteCopyValue(data, "works.seoDescription")
+  };
+}
 
 export default async function WorksPage() {
-  const [{ media, works }, categories] = await Promise.all([
+  const [data, categories] = await Promise.all([
     getPlatformSiteData(),
     getPlatformProjectTypeCategories()
   ]);
+  const { media, works } = data;
   const featuredWork = works[0];
 
   return (
     <>
       <PageHero
-        description="这里汇集战纪宇宙的开发中项目、概念作品与服务样板。每个条目都标注当前状态、内容形态和可交付范围。"
-        eyebrow="works library"
+        description={siteCopyValue(data, "works.hero.description")}
+        eyebrow={siteCopyValue(data, "works.hero.eyebrow")}
         image={media.hero}
-        title="作品展示与概念样板"
+        title={siteCopyValue(data, "works.hero.title")}
         video={media.heroVideo}
       />
       {featuredWork ? (
@@ -58,7 +63,7 @@ export default async function WorksPage() {
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.32em] text-cyan-200">
-                featured
+                {siteCopyValue(data, "works.featured.eyebrow", "featured")}
               </p>
               <h2 className="mt-5 text-balance text-4xl font-semibold leading-tight text-stone-50 md:text-6xl">
                 {featuredWork.title}
@@ -85,13 +90,13 @@ export default async function WorksPage() {
                   href="/universe"
                 >
                   <PlaySquare aria-hidden="true" className="h-4 w-4" />
-                  进入世界观
+                  {siteCopyValue(data, "works.featured.primaryLabel", "进入世界观")}
                 </Link>
                 <Link
                   className="inline-flex items-center gap-2 rounded-lg border border-white/15 px-5 py-3 text-sm font-semibold text-stone-100 transition hover:border-cyan-200/60 hover:bg-cyan-200/10"
                   href="/services#contact"
                 >
-                  商务咨询
+                  {siteCopyValue(data, "works.featured.secondaryLabel", "商务咨询")}
                   <ArrowRight aria-hidden="true" className="h-4 w-4" />
                 </Link>
               </div>
@@ -102,16 +107,16 @@ export default async function WorksPage() {
       <section className="px-5 py-24 md:px-8">
         <div className="mx-auto max-w-7xl">
           <SectionHeading
-            description="按战纪宇宙、概念预告、短剧漫剧、文旅宣传和品牌影像组织内容。点击作品卡片可查看状态、内容形态和可交付资产。"
-            eyebrow="filter"
-            title="概念作品库"
+            description={siteCopyValue(data, "works.library.description")}
+            eyebrow={siteCopyValue(data, "works.library.eyebrow")}
+            title={siteCopyValue(data, "works.library.title")}
           />
           <div className="mt-10">
             <WorkGallery categories={categories} works={works} />
           </div>
         </div>
       </section>
-      <CtaBand />
+      <CtaBand data={data} />
     </>
   );
 }

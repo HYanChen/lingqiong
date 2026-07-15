@@ -344,6 +344,44 @@ function validateSiteData(value: unknown): SiteData {
     maxTotal: 12000
   });
 
+  const copyKeys = new Set<string>();
+  for (const [index, item] of array(root.siteCopy, "页面文案", 500).entries()) {
+    const current = record(item, `第 ${index + 1} 条页面文案`);
+    const key = text(current.key, `第 ${index + 1} 条页面文案键`, {
+      max: 160,
+      required: true
+    }).trim();
+
+    if (!/^[a-z][a-z0-9]*(?:\.[a-zA-Z0-9]+)+$/u.test(key)) {
+      fail(`第 ${index + 1} 条页面文案键格式不正确`);
+    }
+
+    if (copyKeys.has(key)) {
+      fail(`页面文案键“${key}”重复`);
+    }
+
+    copyKeys.add(key);
+    text(current.group, `第 ${index + 1} 条页面文案分组`, {
+      max: 80,
+      required: true
+    });
+    text(current.label, `第 ${index + 1} 条页面文案名称`, {
+      max: 160,
+      required: true
+    });
+    const value = text(current.value, `第 ${index + 1} 条页面文案内容`, {
+      max: 20000
+    });
+
+    if (key.endsWith("Href")) {
+      href(value, `第 ${index + 1} 条页面文案链接`);
+    }
+
+    if (current.multiline !== undefined && typeof current.multiline !== "boolean") {
+      fail(`第 ${index + 1} 条页面文案多行标记格式不正确`);
+    }
+  }
+
   return value as SiteData;
 }
 

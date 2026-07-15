@@ -45,7 +45,7 @@ export async function generateMetadata({
 
 export default async function WorkDetailPage({ params }: WorkDetailPageProps) {
   const { slug } = await params;
-  const { work } = await findWork(slug);
+  const { data, work } = await findWork(slug);
 
   if (!work) {
     notFound();
@@ -162,7 +162,7 @@ export default async function WorkDetailPage({ params }: WorkDetailPageProps) {
           </div>
         </section>
       </article>
-      <CtaBand />
+      <CtaBand data={data} />
     </>
   );
 }

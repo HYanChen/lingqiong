@@ -4,6 +4,7 @@ import path from "node:path";
 import {
   defaultSiteData,
   type SiteData,
+  type SiteCopyEntry,
   type TeamMember
 } from "@/content/site";
 import { getFirstRow, readDatabase, writeDatabase } from "@/lib/database";
@@ -131,6 +132,58 @@ function normalizeTeamMembers(value: unknown): TeamMember[] {
   });
 }
 
+function normalizeSiteCopy(value: unknown): SiteCopyEntry[] {
+  const incoming = Array.isArray(value)
+    ? value.filter(
+        (item): item is Record<string, unknown> =>
+          isRecord(item) && typeof item.key === "string"
+      )
+    : [];
+  const incomingByKey = new Map(
+    incoming.map((item) => [stringValue(item.key).trim(), item])
+  );
+  const defaults = defaultSiteData.siteCopy.map((entry) => {
+    const override = incomingByKey.get(entry.key);
+
+    incomingByKey.delete(entry.key);
+
+    return {
+      ...entry,
+      ...(override
+        ? {
+            group: stringValue(override.group).trim() || entry.group,
+            label: stringValue(override.label).trim() || entry.label,
+            multiline:
+              typeof override.multiline === "boolean"
+                ? override.multiline
+                : entry.multiline,
+            value:
+              typeof override.value === "string" ? override.value : entry.value
+          }
+        : {})
+    };
+  });
+  const custom = Array.from(incomingByKey.values()).flatMap((item) => {
+    const key = stringValue(item.key).trim();
+
+    if (!key) {
+      return [];
+    }
+
+    return [
+      {
+        group: stringValue(item.group).trim() || "自定义",
+        key,
+        label: stringValue(item.label).trim() || key,
+        multiline: Boolean(item.multiline),
+        value: stringValue(item.value)
+      } satisfies SiteCopyEntry
+    ];
+  });
+
+  return [...defaults, ...custom];
+}
+
 function normalizeData(value: unknown): SiteData {
   if (!isRecord(value)) {
     return defaultSiteData;
@@ -166,7 +219,8 @@ function normalizeData(value: unknown): SiteData {
     teamMembers: normalizeTeamMembers(value.teamMembers),
     proofPoints: Array.isArray(value.proofPoints)
       ? value.proofPoints
-      : defaultSiteData.proofPoints
+      : defaultSiteData.proofPoints,
+    siteCopy: normalizeSiteCopy(value.siteCopy)
   } as SiteData;
 }
 

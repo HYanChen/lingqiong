@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import type { SiteData } from "@/content/site";
+import { siteCopyValue, type SiteData } from "@/content/site";
 
 type FooterSection = {
   title: string;
@@ -13,6 +13,10 @@ type FooterSection = {
 
 export function SiteFooter({ data }: { data: SiteData }) {
   const { brand, company, navItems } = data;
+  const highlights = [1, 2, 3].map((index) => [
+    siteCopyValue(data, `global.footer.highlight${index}Title`),
+    siteCopyValue(data, `global.footer.highlight${index}Body`)
+  ]);
   const sections: FooterSection[] = [
     {
       title: "探索",
@@ -69,15 +73,15 @@ export function SiteFooter({ data }: { data: SiteData }) {
               {brand.english}
             </p>
             <p className="mt-5 max-w-md text-sm leading-7 text-stone-400">
-              原创 AI 影视宇宙与灵穹制作平台的统一入口，用于展示作品、承接项目并沉淀制作资产。
+              {siteCopyValue(
+                data,
+                "global.footer.description",
+                "原创 AI 影视宇宙与灵穹制作平台的统一入口，用于展示作品、承接项目并沉淀制作资产。"
+              )}
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
-            {[
-              ["概念展示", "页面中的概念图、样板和流程说明用于官网展示与招商沟通。"],
-              ["状态保守", "《火种》及相关作品以页面标注状态为准，不伪造上线数据。"],
-              ["统一平台", "项目、生产管理、灵穹 API 与知识库通过统一登录进入。"]
-            ].map(([title, body]) => (
+            {highlights.map(([title, body]) => (
               <div
                 className="rounded-lg border border-white/10 bg-white/[0.035] p-4"
                 key={title}

@@ -12,9 +12,10 @@ import { cn } from "@/lib/utils";
 type SiteHeaderProps = {
   brand: Brand;
   navItems: NavItem[];
+  worksLabel?: string;
 };
 
-export function SiteHeader({ brand, navItems }: SiteHeaderProps) {
+export function SiteHeader({ brand, navItems, worksLabel = "查看作品" }: SiteHeaderProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -81,7 +82,7 @@ export function SiteHeader({ brand, navItems }: SiteHeaderProps) {
             className="rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-stone-100 transition hover:border-cyan-200/60 hover:bg-cyan-200/10"
             href="/works"
           >
-            查看作品
+            {worksLabel}
           </Link>
           <SiteLogin brand={brand} />
         </div>

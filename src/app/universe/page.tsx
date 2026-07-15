@@ -4,33 +4,40 @@ import Image from "next/image";
 import { CtaBand } from "@/components/cta-band";
 import { PageHero } from "@/components/page-hero";
 import { SectionHeading } from "@/components/section-heading";
+import { siteCopyRows, siteCopyValue } from "@/content/site";
 import { getIcon } from "@/lib/icon-map";
 import { getPlatformSiteData } from "@/lib/platform-api-client";
 
-export const metadata: Metadata = {
-  title: "世界观",
-  description: "战纪宇宙的五代叙事、第一部《火种》和长期更新结构。"
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const data = await getPlatformSiteData();
+  return {
+    title: siteCopyValue(data, "universe.seoTitle", "世界观"),
+    description: siteCopyValue(data, "universe.seoDescription")
+  };
+}
 
 export default async function UniversePage() {
-  const { media, universeChapters } = await getPlatformSiteData();
+  const data = await getPlatformSiteData();
+  const { media, universeChapters } = data;
+  const sparkFacts = siteCopyRows(data, "universe.spark.facts");
+  const assetItems = siteCopyRows(data, "universe.assets.items");
 
   return (
     <>
       <PageHero
-        description="战纪宇宙以家族记忆、时代选择和新一代成长为主线，从《火种》开始，逐步扩展成可持续更新的原创 AI 影视宇宙。"
-        eyebrow="universe"
+        description={siteCopyValue(data, "universe.hero.description")}
+        eyebrow={siteCopyValue(data, "universe.hero.eyebrow")}
         image={media.generations}
-        title="五代叙事，一条可长期更新的影像宇宙"
+        title={siteCopyValue(data, "universe.hero.title")}
         video={media.heroVideo}
       />
 
       <section className="px-5 py-24 md:px-8">
         <div className="mx-auto max-w-7xl">
           <SectionHeading
-            description="五代叙事不是简单年代划分，而是为了让每一部作品都有清晰的精神位置、人物压力和商业开发方向。"
-            eyebrow="timeline"
-            title="从火种到未来"
+            description={siteCopyValue(data, "universe.timeline.description")}
+            eyebrow={siteCopyValue(data, "universe.timeline.eyebrow")}
+            title={siteCopyValue(data, "universe.timeline.title")}
           />
           <div className="mt-12 grid gap-5 lg:grid-cols-5">
             {universeChapters.map((chapter) => {
@@ -62,17 +69,12 @@ export default async function UniversePage() {
         <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[0.92fr_1.08fr] lg:items-center">
           <div>
             <SectionHeading
-              description="《火种》以旧物作为叙事入口，用祖辈记忆和后代成长连接过去与当下。项目当前处于开发中和概念样片阶段，适合作为官网首个代表项目展示。"
-              eyebrow="first project"
-              title="战纪宇宙001：《火种》"
+              description={siteCopyValue(data, "universe.spark.description")}
+              eyebrow={siteCopyValue(data, "universe.spark.eyebrow")}
+              title={siteCopyValue(data, "universe.spark.title")}
             />
             <div className="mt-8 grid gap-4 sm:grid-cols-2">
-              {[
-                ["叙事锚点", "军功章、战地日记、后代入伍选择"],
-                ["内容形态", "竖屏短剧、概念预告、宣发切片"],
-                ["当前状态", "开发中 / 概念样片阶段"],
-                ["核心产物", "世界观、人物关系、资产库、分镜提示词"]
-              ].map(([title, body]) => (
+              {sparkFacts.map(([title, body]) => (
                 <div
                   className="rounded-lg border border-white/10 bg-white/[0.04] p-5"
                   key={title}
@@ -99,12 +101,12 @@ export default async function UniversePage() {
         <div className="mx-auto max-w-7xl">
           <SectionHeading
             align="center"
-            description="战纪宇宙的长期开发会把人物、时代、物件、场景和声音持续沉淀为资产，而不是每次从空白重新开始。"
-            eyebrow="asset logic"
-            title="让世界观成为可复用资产"
+            description={siteCopyValue(data, "universe.assets.description")}
+            eyebrow={siteCopyValue(data, "universe.assets.eyebrow")}
+            title={siteCopyValue(data, "universe.assets.title")}
           />
           <div className="mt-12 grid gap-5 md:grid-cols-3">
-            {["人物谱系", "时代场景", "核心物件"].map((title, index) => (
+            {assetItems.map(([title, body], index) => (
               <article
                 className="rounded-lg border border-white/10 bg-white/[0.035] p-6"
                 key={title}
@@ -114,11 +116,7 @@ export default async function UniversePage() {
                   {title}
                 </h2>
                 <p className="mt-4 text-sm leading-7 text-stone-300">
-                  {index === 0
-                    ? "建立祖辈、父辈、当代青年和未来支线人物关系，保证系列更新时人物动机清晰。"
-                    : index === 1
-                      ? "把村庄、城市、展馆、训练场和虚拟影棚等场景沉淀成统一视觉语言。"
-                      : "用日记、奖章、照片、旧箱子和投影设备等物件承担叙事记忆。"}
+                  {body}
                 </p>
               </article>
             ))}
@@ -126,7 +124,7 @@ export default async function UniversePage() {
         </div>
       </section>
 
-      <CtaBand />
+      <CtaBand data={data} />
     </>
   );
 }

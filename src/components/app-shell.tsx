@@ -1,6 +1,6 @@
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
-import type { SiteData } from "@/content/site";
+import { siteCopyValue, type SiteData } from "@/content/site";
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -10,7 +10,11 @@ type AppShellProps = {
 export function AppShell({ children, data }: AppShellProps) {
   return (
     <>
-      <SiteHeader brand={data.brand} navItems={data.navItems} />
+      <SiteHeader
+        brand={data.brand}
+        navItems={data.navItems}
+        worksLabel={siteCopyValue(data, "global.header.worksLabel", "查看作品")}
+      />
       <main>{children}</main>
       <SiteFooter data={data} />
     </>

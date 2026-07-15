@@ -17,6 +17,10 @@ export const getProjectTypes = async () => parseBridge(await defHttp.get({ url: 
 export const saveProjectType = async (params) => parseBridge(await defHttp.post({ url: `${bridge}/admin/project-types`, params }));
 export const deleteProjectType = async (id: string) => parseBridge(await defHttp.delete({ url: `${bridge}/admin/project-types`, data: { id } }));
 
+export const getSkills = async () => parseBridge(await defHttp.get({ url: `${bridge}/admin/skills` }));
+export const saveSkill = async (params) => parseBridge(await defHttp.post({ url: `${bridge}/admin/skills`, params }));
+export const deleteSkill = async (id: string) => parseBridge(await defHttp.delete({ url: `${bridge}/admin/skills`, data: { id } }));
+
 export const uploadSiteImage = (file: File, onUploadProgress?: (event: ProgressEvent) => void) =>
   defHttp.uploadFile(
     { url: '/lingqiong/media/upload', onUploadProgress },
