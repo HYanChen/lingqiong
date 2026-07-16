@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 
 function envFileValue(key) {
-  for (const filename of [".env.local", ".env", ".env.baota"]) {
+  for (const filename of [".env.local", ".env", ".env.baota", ".env.new-api.example"]) {
     if (!existsSync(filename)) continue;
     const match = readFileSync(filename, "utf8")
       .split(/\r?\n/u)
@@ -24,16 +24,23 @@ const baseUrl = (
   /\/+$/u,
   ""
 );
-const username = process.env.KNOWLEDGE_TEST_ADMIN_USERNAME || "admin";
+const localServiceSecret = ["localhost", "127.0.0.1"].includes(new URL(baseUrl).hostname)
+  ? "zhanji-jeecg-service-local-secret"
+  : "";
+const username =
+  process.env.KNOWLEDGE_TEST_ADMIN_USERNAME ||
+  envFileValue("ADMIN_USERNAME") ||
+  "admin";
 const password =
   process.env.KNOWLEDGE_TEST_ADMIN_PASSWORD ||
   process.env.ADMIN_PASSWORD ||
+  envFileValue("ADMIN_PASSWORD") ||
   "zhanji2026";
 const serviceSecret =
   process.env.KNOWLEDGE_TEST_SERVICE_SECRET ||
   process.env.JEECG_SERVICE_SECRET ||
   envFileValue("JEECG_SERVICE_SECRET") ||
-  "";
+  localServiceSecret;
 const apiRoot = `${baseUrl}/_wcu-api/knowledge`;
 const checks = [];
 const cleanupTasks = [];

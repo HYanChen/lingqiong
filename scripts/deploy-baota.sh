@@ -270,6 +270,10 @@ JEECG_SMOKE_PLATFORM_BASE="http://localhost:18080/_wcu-api" \
 JEECG_SMOKE_ENV_FILE="$ROOT/.env.baota" \
 JEECG_SMOKE_REDIS_CONTAINER="lingqiong-jeecg-redis" \
   bash "$ROOT/scripts/smoke-jeecg-production.sh"
+docker exec \
+  -e WCU_AUDIT_BASE_URL="http://proxy" \
+  -e LINGQIONG_SERVICE_SECRET="$JEECG_SERVICE_SECRET" \
+  lingqiong-platform-api node scripts/skill-linkage-smoke.mjs
 for public_url in \
   https://pla.wiki/ \
   https://pla.wiki/login \

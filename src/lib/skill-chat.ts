@@ -461,6 +461,31 @@ export async function deleteSkillWorkspacePath(session: PlatformSessionUser, raw
   }
 
   const fileStat = await stat(resolved.absolutePath);
+  const owner = sessionOwnerClause(session);
+
+  await writeDatabase(async (db) => {
+    if (!fileStat.isDirectory()) {
+      await db.execute(
+        `DELETE FROM skill_chat_files WHERE relative_path = ?${owner.sql}`,
+        [resolved.relativePath, ...owner.params]
+      );
+      return;
+    }
+
+    const rows = await getRows<{ id: string; relative_path: string }>(
+      db,
+      `SELECT id, relative_path FROM skill_chat_files WHERE 1 = 1${owner.sql}`,
+      owner.params
+    );
+    const prefix = `${resolved.relativePath}/`;
+
+    for (const row of rows) {
+      if (row.relative_path === resolved.relativePath || row.relative_path.startsWith(prefix)) {
+        await db.execute("DELETE FROM skill_chat_files WHERE id = ?", [row.id]);
+      }
+    }
+  });
+
   await rm(resolved.absolutePath, { force: true, recursive: fileStat.isDirectory() });
 
   return {

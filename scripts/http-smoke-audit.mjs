@@ -10,7 +10,7 @@ import { existsSync, readFileSync } from "node:fs";
 
 import mysql from "mysql2/promise";
 
-const DEFAULT_BASE_URL = "http://127.0.0.1";
+const DEFAULT_BASE_URL = "http://localhost";
 const DEFAULT_TIMEOUT_MS = 20_000;
 
 const publicPages = [

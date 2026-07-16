@@ -14,14 +14,14 @@ export function TeamMemberCard({
   return (
     <Link
       aria-label={`查看${member.name}的详细资料`}
-      className="group block rounded-lg border border-white/10 bg-black/25 p-5 transition hover:-translate-y-0.5 hover:border-cyan-200/45 hover:bg-cyan-200/[0.06] focus-visible:border-cyan-200/70"
+      className="group block rounded-xl border border-white/10 bg-black/25 p-4 transition hover:-translate-y-0.5 hover:border-cyan-200/45 hover:bg-cyan-200/[0.06] focus-visible:border-cyan-200/70 sm:p-5"
       href={`/about/team/${encodeURIComponent(member.slug)}`}
     >
       <div className="flex items-start gap-4">
         {member.avatar ? (
           <div
             aria-label={`${member.name}人物照片`}
-            className="h-20 w-16 shrink-0 rounded-lg border border-white/10 bg-cover bg-center"
+            className="h-16 w-16 shrink-0 rounded-lg border border-white/10 bg-cover bg-center"
             role="img"
             style={{ backgroundImage: `url(${JSON.stringify(member.avatar)})` }}
           />
@@ -37,7 +37,7 @@ export function TeamMemberCard({
               <span
                 className={cn(
                   "mt-2 block font-semibold text-stone-50",
-                  featured ? "text-3xl" : "text-2xl"
+                  featured ? "text-2xl" : "text-xl"
                 )}
               >
                 {member.name}
@@ -56,11 +56,7 @@ export function TeamMemberCard({
         <p className="mt-5 line-clamp-3 text-sm leading-7 text-stone-400">
           {member.bio}
         </p>
-      ) : (
-        <p className="mt-5 text-sm leading-7 text-stone-500">
-          点击查看人物资料页
-        </p>
-      )}
+      ) : null}
 
       {member.expertise.length ? (
         <div className="mt-4 flex flex-wrap gap-2">

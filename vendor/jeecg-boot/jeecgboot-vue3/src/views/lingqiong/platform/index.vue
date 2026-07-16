@@ -3,20 +3,72 @@
     <section class="lingqiong-page-hero platform-hero">
       <div>
         <small>PLATFORM CONTROL</small>
-        <h1>官网与平台配置</h1>
-        <p>这里保存的品牌、人物、登录、模型和项目类型会立即同步到灵穹官网与创作者工作台。</p>
+        <h1>灵穹内容管理工作台</h1>
+        <p>按要完成的任务找到对应入口；保存后的品牌、人物、登录和创作配置会立即同步前台。</p>
       </div>
       <a-button href="https://pla.wiki/" target="_blank">预览正式官网</a-button>
     </section>
     <a-card :bordered="false">
       <template #title>
         <div>
-          <div class="page-title">官网与平台配置</div>
-          <div class="page-subtitle">在统一后台维护官网人物、登录渠道、模型接口和项目分类。</div>
+          <div class="page-title">内容管理工作台</div>
+          <div class="page-subtitle">不知道从哪里修改时，先在管理首页搜索内容或按任务进入。</div>
         </div>
       </template>
 
+      <div v-if="activeTab !== 'overview'" class="section-context">
+        <a-button type="link" class="section-context__back" @click="activeTab = 'overview'">← 返回管理首页</a-button>
+        <div v-if="currentAdminSection" class="section-context__copy">
+          <small>当前正在编辑</small>
+          <strong>{{ currentAdminSection.title }}</strong>
+          <span>{{ currentAdminSection.description }}</span>
+        </div>
+      </div>
+
       <a-tabs v-model:activeKey="activeTab">
+        <a-tab-pane key="overview" tab="管理首页">
+          <section class="admin-overview">
+            <div class="admin-overview__intro">
+              <div>
+                <small>QUICK NAVIGATION</small>
+                <h2>你现在想修改什么？</h2>
+                <p>搜索页面名称、业务模块或操作关键词，也可以直接从下方任务卡片进入。原有管理功能均保留。</p>
+              </div>
+              <a-input-search
+                v-model:value="adminSearch"
+                class="admin-overview__search"
+                allow-clear
+                size="large"
+                placeholder="搜索：团队、首页文案、微信登录、Skill……"
+              />
+            </div>
+
+            <div class="admin-overview__guide">
+              <span><i></i> 官网展示内容</span>
+              <span><i></i> 用户登录与创作能力</span>
+              <span><i></i> 保存后同步灵穹前台</span>
+            </div>
+
+            <div v-if="filteredAdminSections.length" class="admin-section-grid">
+              <article v-for="section in filteredAdminSections" :key="section.key" class="admin-section-card" @click="openAdminSection(section.key)">
+                <div class="admin-section-card__top">
+                  <span class="admin-section-card__icon">{{ section.icon }}</span>
+                  <a-tag :color="section.color">{{ section.category }}</a-tag>
+                </div>
+                <div class="admin-section-card__body">
+                  <h3>{{ section.title }}</h3>
+                  <p>{{ section.description }}</p>
+                </div>
+                <div class="admin-section-card__footer">
+                  <span>{{ section.status }}</span>
+                  <a-button type="link" class="admin-section-card__action" @click.stop="openAdminSection(section.key)">进入修改 →</a-button>
+                </div>
+              </article>
+            </div>
+            <a-empty v-else class="admin-overview__empty" description="没有找到对应模块，请尝试搜索“官网”“团队”或“登录”" />
+          </section>
+        </a-tab-pane>
+
         <a-tab-pane key="site" tab="官网基础内容">
           <a-alert class="mb-4" type="info" show-icon message="这里维护官网品牌介绍、公司主体、联系方式和全站视觉素材，保存后公开页面立即读取新内容。" />
           <a-form v-if="siteContent.brand && siteContent.company && siteContent.media" layout="vertical" class="settings-form">
@@ -164,12 +216,17 @@
 
         <a-tab-pane key="skills" tab="Skill 管理">
           <div class="section-toolbar">
-            <a-alert type="info" show-icon message="统一维护创作者工作台可见的 Skill。启停、名称、触发词和提示词保存后立即作用于前台。" />
-            <a-button type="primary" @click="openSkill()">新增 Skill</a-button>
+            <a-alert type="info" show-icon message="这里维护前台 Skill 库的完整数据：基础信息、可见范围和全部任务模块。保存后创作者端会读取同一份数据。" />
+            <a-space>
+              <a-button href="/skills" target="_blank">查看用户端</a-button>
+              <a-button type="primary" @click="openSkill()">新增 Skill</a-button>
+            </a-space>
           </div>
           <a-table :columns="skillColumns" :data-source="skills" row-key="id" :pagination="false">
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'active'"><a-tag :color="record.active ? 'green' : 'default'">{{ record.active ? '启用' : '停用' }}</a-tag></template>
+              <template v-if="column.key === 'modules'"><a-tag color="cyan">{{ record.modules?.length || 0 }} 个模块</a-tag></template>
+              <template v-if="column.key === 'visibility'"><a-tag :color="record.visibility === 'public' ? 'blue' : 'gold'">{{ record.visibility === 'public' ? '全部用户' : '仅所有者' }}</a-tag></template>
               <template v-if="column.key === 'actions'">
                 <a-space>
                   <a-button type="link" size="small" @click="openSkill(record)">编辑</a-button>
@@ -274,18 +331,46 @@
       </a-form>
     </a-modal>
 
-    <a-modal v-model:open="skillVisible" :title="skillDraft.id ? '编辑 Skill' : '新增 Skill'" width="760px" @ok="submitSkill">
+    <a-modal v-model:open="skillVisible" :title="skillDraft.id ? '编辑并发布 Skill' : '新增并发布 Skill'" width="1040px" ok-text="保存并同步前台" @ok="submitSkill">
       <a-form layout="vertical">
+        <a-alert class="mb-4" type="info" show-icon message="用户端按“Skill → 任务模块”运行。请至少保留一个模块；模块顺序、输入材料、输出结果和提示词都会原样同步。" />
         <a-row :gutter="16">
           <a-col :xs="24" :md="12"><a-form-item label="名称" required><a-input v-model:value="skillDraft.displayName" /></a-form-item></a-col>
           <a-col :xs="24" :md="12"><a-form-item label="触发词"><a-input v-model:value="skillDraft.triggerName" /></a-form-item></a-col>
           <a-col :xs="24" :md="12"><a-form-item label="分类"><a-input v-model:value="skillDraft.category" /></a-form-item></a-col>
-          <a-col :xs="24" :md="12"><a-form-item label="启用"><a-switch v-model:checked="skillDraft.active" /></a-form-item></a-col>
+          <a-col :xs="24" :md="12"><a-form-item label="所有者"><a-input v-model:value="skillDraft.owner" placeholder="默认：平台团队" /></a-form-item></a-col>
+          <a-col :xs="24" :md="8"><a-form-item label="来源"><a-select v-model:value="skillDraft.source"><a-select-option value="平台">平台</a-select-option><a-select-option value="内置">内置</a-select-option><a-select-option value="用户上传">用户上传</a-select-option></a-select></a-form-item></a-col>
+          <a-col :xs="24" :md="8"><a-form-item label="前台可见范围"><a-select v-model:value="skillDraft.visibility"><a-select-option value="public">全部用户可见</a-select-option><a-select-option value="private">仅所有者可见</a-select-option></a-select></a-form-item></a-col>
+          <a-col :xs="24" :md="8"><a-form-item label="发布状态"><a-switch v-model:checked="skillDraft.active" checked-children="已发布" un-checked-children="已停用" /></a-form-item></a-col>
           <a-col :span="24"><a-form-item label="说明"><a-textarea v-model:value="skillDraft.description" :rows="3" /></a-form-item></a-col>
-          <a-col :span="24"><a-form-item label="系统提示词"><a-textarea v-model:value="skillDraft.prompt" :rows="6" /></a-form-item></a-col>
-          <a-col :xs="24" :md="12"><a-form-item label="输入材料（每行一项）"><a-textarea v-model:value="skillMaterials" :rows="4" /></a-form-item></a-col>
-          <a-col :xs="24" :md="12"><a-form-item label="输出结果（每行一项）"><a-textarea v-model:value="skillOutputs" :rows="4" /></a-form-item></a-col>
         </a-row>
+        <a-divider orientation="left">任务模块</a-divider>
+        <div class="module-toolbar">
+          <div><strong>用户选择具体模块后才会调用模型</strong><p>建议一个模块只完成一个明确任务，并写清输入材料、输出结果和下一步。</p></div>
+          <a-button type="dashed" @click="addSkillModule">新增模块</a-button>
+        </div>
+        <div v-for="(module, index) in skillModules" :key="module.id" class="skill-module-editor">
+          <div class="skill-module-editor__head">
+            <div><a-tag color="cyan">{{ module.order || String(index + 1).padStart(2, '0') }}</a-tag><strong>{{ module.title || '未命名模块' }}</strong></div>
+            <a-space>
+              <a-button size="small" :disabled="index === 0" @click="moveSkillModule(index, -1)">上移</a-button>
+              <a-button size="small" :disabled="index === skillModules.length - 1" @click="moveSkillModule(index, 1)">下移</a-button>
+              <a-popconfirm title="确认删除这个任务模块？" @confirm="removeSkillModule(index)"><a-button size="small" danger>删除</a-button></a-popconfirm>
+            </a-space>
+          </div>
+          <a-row :gutter="16">
+            <a-col :xs="24" :md="8"><a-form-item label="模块名称" required><a-input v-model:value="module.title" placeholder="例如：剧本会诊" /></a-form-item></a-col>
+            <a-col :xs="24" :md="8"><a-form-item label="用户端短名称"><a-input v-model:value="module.shortTitle" placeholder="例如：诊断已有剧本" /></a-form-item></a-col>
+            <a-col :xs="12" :md="4"><a-form-item label="顺序"><a-input v-model:value="module.order" placeholder="01" /></a-form-item></a-col>
+            <a-col :xs="12" :md="4"><a-form-item label="状态"><a-select v-model:value="module.status"><a-select-option value="可继续生产">可继续生产</a-select-option><a-select-option value="待补材料">待补材料</a-select-option><a-select-option value="初稿">初稿</a-select-option></a-select></a-form-item></a-col>
+            <a-col :span="24"><a-form-item label="模块说明"><a-textarea v-model:value="module.description" :rows="2" /></a-form-item></a-col>
+            <a-col :xs="24" :md="12"><a-form-item label="输入材料（每行一项）"><a-textarea v-model:value="module.materialsText" :rows="4" /></a-form-item></a-col>
+            <a-col :xs="24" :md="12"><a-form-item label="输出结果（每行一项）"><a-textarea v-model:value="module.outputsText" :rows="4" /></a-form-item></a-col>
+            <a-col :span="24"><a-form-item label="模块系统提示词" required><a-textarea v-model:value="module.prompt" :rows="5" /></a-form-item></a-col>
+            <a-col :xs="24" :md="12"><a-form-item label="参考文件"><a-input v-model:value="module.reference" placeholder="例如 references/02-script-doctor.md" /></a-form-item></a-col>
+            <a-col :xs="24" :md="12"><a-form-item label="完成后的下一步"><a-input v-model:value="module.nextStep" /></a-form-item></a-col>
+          </a-row>
+        </div>
       </a-form>
     </a-modal>
 
@@ -327,7 +412,8 @@
   } from './platform.api';
 
   const { createMessage } = useMessage();
-  const activeTab = ref('site');
+  const activeTab = ref('overview');
+  const adminSearch = ref('');
   const siteContent = ref<any>({ teamMembers: [] });
   const proofPointsText = ref('');
   const uploadingMediaKey = ref('');
@@ -352,8 +438,7 @@
   const skills = ref<any[]>([]);
   const skillVisible = ref(false);
   const skillDraft = reactive<any>({});
-  const skillMaterials = ref('');
-  const skillOutputs = ref('');
+  const skillModules = ref<any[]>([]);
   const modelConfigs = ref<any[]>([]);
   const modelVisible = ref(false);
   const modelDraft = reactive<any>({});
@@ -405,6 +490,7 @@
   ];
   const skillColumns = [
     { title: '名称', dataIndex: 'displayName' }, { title: '触发词', dataIndex: 'triggerName' }, { title: '分类', dataIndex: 'category' },
+    { title: '模块', key: 'modules', width: 110 }, { title: '可见范围', key: 'visibility', width: 110 },
     { title: '来源', dataIndex: 'source', width: 100 }, { title: '状态', key: 'active', width: 90 }, { title: '操作', key: 'actions', width: 140 },
   ];
   const mediaFields = [
@@ -412,9 +498,84 @@
     { key: 'spark', label: '作品视觉图' }, { key: 'workflow', label: '生产线视觉图' },
     { key: 'generations', label: '世界观视觉图' }, { key: 'services', label: '服务视觉图' },
   ];
+  const adminSections = computed(() => [
+    {
+      key: 'site', icon: '品', color: 'cyan', category: '官网内容', title: '品牌与联系方式',
+      description: '修改品牌名称、公司主体、联系方式、导航和全站图片视频。',
+      status: siteContent.value.brand?.name ? `当前品牌：${siteContent.value.brand.name}` : '正在读取官网配置',
+      keywords: '官网 首页 品牌 公司 联系 邮箱 电话 微信 导航 图片 视频 素材 logo 页头 页脚',
+    },
+    {
+      key: 'copy', icon: '文', color: 'blue', category: '官网内容', title: '页面标题与文案',
+      description: '修改首页、世界观、作品、服务、关于、生产线及全局页头页脚文案。',
+      status: `${siteContent.value.siteCopy?.length || 0} 项可编辑文案`,
+      keywords: '文案 标题 副标题 介绍 首页 世界观 作品 服务 关于 生产线 页头 页脚 按钮',
+    },
+    {
+      key: 'works', icon: '作', color: 'geekblue', category: '官网内容', title: '作品与案例',
+      description: '新增、编辑、排序作品卡片、封面、详情介绍和交付内容。',
+      status: `${siteContent.value.works?.length || 0} 个作品`,
+      keywords: '作品 案例 封面 详情 标签 交付 作品集',
+    },
+    {
+      key: 'services', icon: '服', color: 'purple', category: '官网内容', title: '服务与交付',
+      description: '维护服务名称、适用对象、周期、说明和对应交付项目。',
+      status: `${siteContent.value.services?.length || 0} 项服务`,
+      keywords: '服务 交付 周期 适用对象 客户',
+    },
+    {
+      key: 'universeChapters', icon: '界', color: 'volcano', category: '官网内容', title: '世界观章节',
+      description: '管理世界观时间线、时代阶段、章节标题和内容说明。',
+      status: `${siteContent.value.universeChapters?.length || 0} 个章节`,
+      keywords: '世界观 宇宙 时间线 时代 章节',
+    },
+    {
+      key: 'pipelineSteps', icon: '产', color: 'orange', category: '官网内容', title: '生产线流程',
+      description: '调整官网与创作项目共用的生产步骤、阶段说明和产物。',
+      status: `${siteContent.value.pipelineSteps?.length || 0} 个生产步骤`,
+      keywords: '生产线 流程 步骤 阶段 产物 项目说明',
+    },
+    {
+      key: 'team', icon: '人', color: 'green', category: '官网内容', title: '团队与顾问',
+      description: '新增、编辑、排序团队成员和顾问，上传照片并维护人物详情。',
+      status: `${teamMembers.value.length} 位人物`,
+      keywords: '团队 顾问 人物 员工 成员 照片 头像 分组 简介 履历',
+    },
+    {
+      key: 'wechat', icon: '登', color: 'green', category: '登录配置', title: '微信与统一登录',
+      description: '配置微信登录开关、授权模式、AppID、密钥和扫码提示。',
+      status: wechat.enabled ? '微信登录已启用' : '微信登录未启用',
+      keywords: '登录 微信 扫码 appid appsecret 授权 账号 用户',
+    },
+    {
+      key: 'skills', icon: '技', color: 'cyan', category: '创作能力', title: 'Skill 工作台',
+      description: '维护用户可见的 Skill、任务模块、输入材料、输出结果和执行提示词。',
+      status: `${skills.value.length} 个 Skill`,
+      keywords: 'skill 技能 工作台 模块 任务 提示词 输入 输出 用户端 创作',
+    },
+    {
+      key: 'models', icon: '模', color: 'blue', category: '创作能力', title: '模型接口',
+      description: '新增或调整模型通道、API 地址、模型名称、计费和启停状态。',
+      status: `${modelConfigs.value.filter((item) => item.enabled).length}/${modelConfigs.value.length} 个接口启用`,
+      keywords: '模型 api 接口 通道 baseurl 密钥 计费 充值 ai',
+    },
+    {
+      key: 'types', icon: '项', color: 'gold', category: '创作能力', title: '项目类型',
+      description: '维护用户新建项目时可选择的类型、分类、说明、排序和状态。',
+      status: `${projectTypes.value.filter((item) => item.active).length}/${projectTypes.value.length} 个类型启用`,
+      keywords: '项目 类型 分类 新建项目 排序 短剧 漫剧',
+    },
+  ]);
+  const filteredAdminSections = computed(() => {
+    const query = adminSearch.value.trim().toLocaleLowerCase();
+    if (!query) return adminSections.value;
+    return adminSections.value.filter((section) => `${section.title} ${section.category} ${section.description} ${section.keywords}`.toLocaleLowerCase().includes(query));
+  });
+  const currentAdminSection = computed(() => adminSections.value.find((section) => section.key === activeTab.value));
 
   function clear(target) { Object.keys(target).forEach((key) => delete target[key]); }
   function lines(value: string) { return value.split('\n').map((item) => item.trim()).filter(Boolean); }
+  function openAdminSection(key: string) { activeTab.value = key; }
   async function loadTeam() {
     siteContent.value = await getSiteContent();
     siteContent.value.navItems ||= [];
@@ -505,14 +666,37 @@
   async function loadWechat() { const result: any = await getLoginSettings(); Object.assign(wechat, result.wechat || {}, { appSecret: '' }); }
   async function submitWechat() { savingWechat.value = true; try { const result: any = await saveLoginSettings({ wechat: { ...wechat } }); Object.assign(wechat, result.settings?.wechat || wechat, { appSecret: '' }); createMessage.success('微信登录配置已保存'); } finally { savingWechat.value = false; } }
   async function loadSkills() { const result: any = await getSkills(); skills.value = result.skills || []; }
-  function openSkill(record?: any) {
-    clear(skillDraft); Object.assign(skillDraft, record ? { ...record } : { displayName: '', triggerName: '', category: '创作工具', description: '', prompt: '', active: true, source: '平台', visibility: 'public' });
-    skillMaterials.value = (record?.modules?.[0]?.materials || []).join('\n'); skillOutputs.value = (record?.modules?.[0]?.outputs || []).join('\n'); skillVisible.value = true;
+  function emptySkillModule(index = 0) {
+    const order = String(index + 1).padStart(2, '0');
+    return {
+      accent: 'blue', description: '', id: `module-${Date.now()}-${index}`, materialsText: '', nextStep: '',
+      order, outputsText: '', prompt: '', reference: '', shortTitle: '', status: '可继续生产', title: '',
+    };
   }
+  function openSkill(record?: any) {
+    clear(skillDraft);
+    Object.assign(skillDraft, record ? JSON.parse(JSON.stringify(record)) : { displayName: '', triggerName: '', category: '创作工具', description: '', owner: '平台团队', active: true, source: '平台', visibility: 'public', packageFiles: [] });
+    skillModules.value = (record?.modules?.length ? record.modules : [emptySkillModule()]).map((module) => ({
+      ...JSON.parse(JSON.stringify(module)), materialsText: (module.materials || []).join('\n'), outputsText: (module.outputs || []).join('\n'),
+    }));
+    skillVisible.value = true;
+  }
+  function addSkillModule() { skillModules.value.push(emptySkillModule(skillModules.value.length)); }
+  function removeSkillModule(index: number) { if (skillModules.value.length <= 1) return createMessage.warning('一个 Skill 至少需要保留一个任务模块'); skillModules.value.splice(index, 1); }
+  function moveSkillModule(index: number, offset: number) { const target = index + offset; if (target < 0 || target >= skillModules.value.length) return; const [module] = skillModules.value.splice(index, 1); skillModules.value.splice(target, 0, module); }
   async function submitSkill() {
     if (!skillDraft.displayName?.trim()) return createMessage.warning('请填写 Skill 名称');
-    await saveSkill({ ...skillDraft, materials: lines(skillMaterials.value), outputs: lines(skillOutputs.value) });
-    skillVisible.value = false; createMessage.success('Skill 已保存并同步创作者工作台'); await loadSkills();
+    if (!skillModules.value.length) return createMessage.warning('请至少添加一个任务模块');
+    const invalid = skillModules.value.find((module) => !module.title?.trim() || !module.prompt?.trim());
+    if (invalid) return createMessage.warning('请完整填写每个模块的名称和系统提示词');
+    const modules = skillModules.value.map((module, index) => ({
+      accent: module.accent || 'blue', description: module.description || '', id: module.id || `module-${Date.now()}-${index}`,
+      materials: lines(module.materialsText || ''), nextStep: module.nextStep || '', order: module.order || String(index + 1).padStart(2, '0'),
+      outputs: lines(module.outputsText || ''), prompt: module.prompt.trim(), reference: module.reference || '', shortTitle: module.shortTitle || module.title,
+      status: module.status || '可继续生产', title: module.title.trim(),
+    }));
+    await saveSkill({ ...skillDraft, modules });
+    skillVisible.value = false; createMessage.success(`Skill 已保存，${modules.length} 个模块已同步用户端`); await loadSkills();
   }
   async function removeSkill(id: string) { await deleteSkill(id); createMessage.success('Skill 已删除'); await loadSkills(); }
   async function loadModels() { const result: any = await getModelApis(); modelConfigs.value = result.configs || []; }
@@ -530,6 +714,33 @@
   .platform-hero { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
   .page-title { font-size: 20px; font-weight: 700; }
   .page-subtitle { margin-top: 4px; color: var(--text-color-secondary); font-size: 13px; font-weight: 400; }
+  .section-context { display: flex; align-items: center; gap: 14px; margin: -2px 0 10px; padding: 12px 16px; border: 1px solid rgba(82, 211, 226, 0.2); border-radius: 12px; background: linear-gradient(110deg, rgba(31, 205, 223, 0.1), rgba(31, 205, 223, 0.02)); }
+  .section-context__back { flex: none; padding: 0; color: #3ecddd; }
+  .section-context__copy { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+  .section-context__copy small { color: var(--text-color-secondary); }
+  .section-context__copy strong { flex: none; }
+  .section-context__copy span { color: var(--text-color-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .admin-overview { padding: 4px 0 12px; }
+  .admin-overview__intro { display: flex; align-items: center; justify-content: space-between; gap: 32px; padding: 28px 30px; border: 1px solid rgba(76, 221, 233, 0.25); border-radius: 18px; background: radial-gradient(circle at 90% 10%, rgba(61, 218, 232, 0.14), transparent 36%), linear-gradient(135deg, rgba(5, 33, 47, 0.9), rgba(9, 23, 36, 0.72)); color: #f5fdff; }
+  .admin-overview__intro small { color: #5edcea; font-size: 11px; font-weight: 700; letter-spacing: 0.22em; }
+  .admin-overview__intro h2 { margin: 8px 0 5px; color: inherit; font-size: 25px; }
+  .admin-overview__intro p { max-width: 650px; margin: 0; color: rgba(222, 241, 245, 0.66); line-height: 1.75; }
+  .admin-overview__search { width: min(420px, 40%); flex: none; }
+  .admin-overview__guide { display: flex; flex-wrap: wrap; gap: 10px 24px; margin: 18px 2px; color: var(--text-color-secondary); font-size: 13px; }
+  .admin-overview__guide span { display: inline-flex; align-items: center; gap: 8px; }
+  .admin-overview__guide i { width: 7px; height: 7px; border-radius: 50%; background: #42d5e3; box-shadow: 0 0 12px rgba(66, 213, 227, 0.75); }
+  .admin-section-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+  .admin-section-card { display: flex; min-height: 226px; padding: 20px; border: 1px solid var(--border-color-base); border-radius: 16px; background: var(--component-background); cursor: pointer; flex-direction: column; transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease; }
+  .admin-section-card:hover { border-color: rgba(66, 213, 227, 0.65); box-shadow: 0 14px 35px rgba(0, 15, 23, 0.16); transform: translateY(-3px); }
+  .admin-section-card__top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .admin-section-card__icon { display: inline-flex; width: 42px; height: 42px; align-items: center; justify-content: center; border: 1px solid rgba(66, 213, 227, 0.35); border-radius: 12px; background: rgba(66, 213, 227, 0.09); color: #38c7d7; font-size: 17px; font-weight: 700; }
+  .admin-section-card__body { flex: 1; }
+  .admin-section-card__body h3 { margin: 18px 0 8px; font-size: 18px; }
+  .admin-section-card__body p { margin: 0; color: var(--text-color-secondary); line-height: 1.7; }
+  .admin-section-card__footer { display: flex; min-height: 34px; align-items: center; justify-content: space-between; gap: 10px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border-color-base); }
+  .admin-section-card__footer > span { min-width: 0; color: var(--text-color-secondary); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .admin-section-card__action { flex: none; padding: 0; color: #38c7d7; }
+  .admin-overview__empty { padding: 56px 0; }
   .section-toolbar { display: flex; gap: 16px; align-items: center; justify-content: space-between; margin-bottom: 18px; }
   .section-toolbar :deep(.ant-alert) { flex: 1; }
   .person-card { margin-bottom: 16px; min-height: 230px; }
@@ -551,5 +762,20 @@
   .content-card > :deep(.ant-card-body) > p { min-height: 66px; margin: 16px 0; overflow: hidden; }
   .upload-row { display: flex; gap: 12px; align-items: center; }
   .upload-row :deep(.ant-input) { flex: 1; }
-  @media (max-width: 768px) { .platform-hero, .section-toolbar, .upload-row { align-items: stretch; flex-direction: column; } .copy-grid { grid-template-columns: 1fr; } .inline-editor-row { grid-template-columns: 1fr; } }
+  .module-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 14px; }
+  .module-toolbar p { margin: 4px 0 0; color: var(--text-color-secondary); font-size: 13px; font-weight: 400; }
+  .skill-module-editor { margin-bottom: 16px; padding: 18px; border: 1px solid var(--border-color-base); border-radius: 12px; background: var(--component-background); }
+  .skill-module-editor__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border-color-base); }
+  .skill-module-editor__head > div { display: flex; align-items: center; gap: 8px; }
+  @media (max-width: 768px) {
+    .platform-hero, .section-toolbar, .upload-row, .admin-overview__intro { align-items: stretch; flex-direction: column; }
+    .section-context { align-items: flex-start; flex-direction: column; }
+    .section-context__copy { align-items: flex-start; flex-direction: column; gap: 3px; }
+    .section-context__copy span { white-space: normal; }
+    .admin-overview__intro { gap: 20px; padding: 22px 20px; }
+    .admin-overview__search { width: 100%; }
+    .admin-section-grid { grid-template-columns: 1fr; }
+    .copy-grid { grid-template-columns: 1fr; }
+    .inline-editor-row { grid-template-columns: 1fr; }
+  }
 </style>

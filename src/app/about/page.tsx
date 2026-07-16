@@ -75,7 +75,7 @@ export default async function AboutPage() {
         </div>
       </section>
 
-      <section className="scroll-mt-24 px-5 py-24 md:px-8" id="team">
+      <section className="scroll-mt-24 px-5 py-16 md:px-8 md:py-20" id="team">
         <div className="mx-auto max-w-7xl">
           <SectionHeading
             align="center"
@@ -85,24 +85,36 @@ export default async function AboutPage() {
           />
 
           {teamMembers.length ? (
-            <div className="mt-12 grid gap-5 lg:grid-cols-2">
+            <div className="mt-10 space-y-4">
               {groupedMembers.map(([group, members], groupIndex) => (
-                <div
+                <section
                   className={
                     groupIndex === 0
-                      ? "rounded-lg border border-cyan-200/20 bg-cyan-200/[0.06] p-6 lg:col-span-2"
-                      : "rounded-lg border border-white/10 bg-white/[0.035] p-6"
+                      ? "rounded-2xl border border-cyan-200/20 bg-cyan-200/[0.055] p-4 sm:p-5"
+                      : "rounded-2xl border border-white/10 bg-white/[0.025] p-4 sm:p-5"
                   }
                   key={group}
                 >
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100">
-                    {group}
-                  </p>
+                  <div className="flex items-center justify-between gap-4 border-b border-white/8 pb-4">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100">
+                        {group}
+                      </p>
+                      <p className="mt-1 text-xs text-stone-600">
+                        {members.length} 位成员
+                      </p>
+                    </div>
+                    <span className="font-mono text-xs text-stone-600">
+                      {String(groupIndex + 1).padStart(2, "0")}
+                    </span>
+                  </div>
                   <div
                     className={
-                      groupIndex === 0
-                        ? "mt-6 grid gap-4 md:grid-cols-2"
-                        : "mt-6 grid gap-4"
+                      members.length >= 3
+                        ? "mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3"
+                        : members.length === 2
+                          ? "mt-4 grid gap-3 md:grid-cols-2"
+                          : "mt-4 grid gap-3"
                     }
                   >
                     {members.map((member) => (
@@ -113,7 +125,7 @@ export default async function AboutPage() {
                       />
                     ))}
                   </div>
-                </div>
+                </section>
               ))}
             </div>
           ) : (

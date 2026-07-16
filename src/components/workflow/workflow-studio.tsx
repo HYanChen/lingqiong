@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   ArrowRight,
   Eye,
@@ -137,25 +137,18 @@ export function WorkflowStudio({ data }: { data: SiteData }) {
   const allCategory = categories[0] || "全部";
   const [activeCategory, setActiveCategory] = useState(allCategory);
   const [query, setQuery] = useState("");
-  const cards = useMemo(
-    () => buildCards(data),
-    [data]
-  );
+  const cards = buildCards(data);
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredCards = cards.filter((card) => {
+    const categoryMatch =
+      activeCategory === allCategory || card.category === activeCategory;
+    const text = `${card.title} ${card.creator} ${card.summary} ${card.process} ${card.tags.join(
+      " "
+    )}`.toLowerCase();
+    const queryMatch = !normalizedQuery || text.includes(normalizedQuery);
 
-  const filteredCards = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-
-    return cards.filter((card) => {
-      const categoryMatch =
-        activeCategory === allCategory || card.category === activeCategory;
-      const text = `${card.title} ${card.creator} ${card.summary} ${card.process} ${card.tags.join(
-        " "
-      )}`.toLowerCase();
-      const queryMatch = !normalizedQuery || text.includes(normalizedQuery);
-
-      return categoryMatch && queryMatch;
-    });
-  }, [activeCategory, allCategory, cards, query]);
+    return categoryMatch && queryMatch;
+  });
 
   const bannerImages = {
     workflow: media.workflow,

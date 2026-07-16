@@ -35,6 +35,9 @@ const dataUiPath = "vendor/jeecg-boot/jeecgboot-vue3/src/views/lingqiong/data/in
 const dataApiPath = "vendor/jeecg-boot/jeecgboot-vue3/src/views/lingqiong/data/data.api.ts";
 const dataUi = source(dataUiPath);
 const projectUi = source("src/components/project/project-creator.tsx");
+const skillUi = source("src/components/skills/user-skill-workbench.tsx");
+const skillAdminUi = source("vendor/jeecg-boot/jeecgboot-vue3/src/views/lingqiong/platform/index.vue");
+const skillApi = source("src/app/api/admin/skills/route.ts");
 const database = source("src/lib/database.ts");
 
 check("Jeecg 全业务数据中心组件存在", existsSync(resolve(root, dataUiPath)));
@@ -45,6 +48,10 @@ check("后台生产链具备服务端汇总接口", operationsController.include
 check("后台业务数据支持按项目过滤", dataService.includes("PROJECT_SCOPED_MODULES") && dataService.includes("`project_id` = ?"));
 check("数据中心沿用项目筛选跳转", dataUi.includes("projectId") && dataUi.includes("openProjectFlow"));
 check("前台项目通过平台 API 读写", projectUi.includes('/_wcu-api/projects'));
+check("Skill 用户端按目标与项目组织任务", skillUi.includes("选择今天的创作目标") && skillUi.includes('/_wcu-api/projects') && skillUi.includes('/_wcu-api/skills/run'));
+check("Skill 用户端展示账户与充值状态", skillUi.includes('/_wcu-api/account/overview') && skillUi.includes('/account/billing'));
+check("Jeecg 后台编辑完整 Skill 模块", skillAdminUi.includes('skillModules') && skillAdminUi.includes('保存并同步前台'));
+check("Skill 后台接口校验多模块结构", skillApi.includes('normalizeModules') && skillApi.includes('Skill 至少需要一个任务模块'));
 check("官网业务库包含完整生产主表", ["projects", "episodes", "elements", "storyboards", "voiceovers", "compositions", "generation_jobs"].every((table) => database.includes(`CREATE TABLE IF NOT EXISTS ${table}`)));
 check("本地 Web 与 API 运行角色分离", localCompose.includes("PLATFORM_RUNTIME_ROLE: web") && localCompose.includes("PLATFORM_RUNTIME_ROLE: api"));
 check("宝塔 Web 与 API 运行角色分离", baotaCompose.includes("PLATFORM_RUNTIME_ROLE: web") && baotaCompose.includes("PLATFORM_RUNTIME_ROLE: api"));

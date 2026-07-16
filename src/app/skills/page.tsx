@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { SkillWorkbench } from "@/components/skills/skill-workbench";
+import { UserSkillWorkbench } from "@/components/skills/user-skill-workbench";
 
 export const metadata: Metadata = {
   title: "灵穹 Skill 工作台",
@@ -8,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function SkillsPage() {
-  return <SkillWorkbench />;
+  return <UserSkillWorkbench />;
 }

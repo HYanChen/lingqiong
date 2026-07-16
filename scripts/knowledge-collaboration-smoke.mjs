@@ -15,8 +15,11 @@ const apiPrefix = (process.env.KNOWLEDGE_TEST_API_PREFIX || "/_wcu-api").replace
   /\/+$/u,
   ""
 );
+const localServiceSecret = ["localhost", "127.0.0.1"].includes(new URL(baseUrl).hostname)
+  ? "zhanji-jeecg-service-local-secret"
+  : "";
 function envFileValue(key) {
-  for (const filename of [".env.local", ".env", ".env.baota"]) {
+  for (const filename of [".env.local", ".env", ".env.baota", ".env.new-api.example"]) {
     if (!existsSync(filename)) continue;
     const match = readFileSync(filename, "utf8")
       .split(/\r?\n/u)
@@ -40,7 +43,7 @@ const serviceSecret =
   process.env.KNOWLEDGE_TEST_SERVICE_SECRET ||
   process.env.JEECG_SERVICE_SECRET ||
   envFileValue("JEECG_SERVICE_SECRET") ||
-  "";
+  localServiceSecret;
 
 function apiUrl(path) {
   return `${baseUrl}${apiPrefix}${path.startsWith("/") ? path : `/${path}`}`;

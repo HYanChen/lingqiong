@@ -7,9 +7,13 @@ const platformApiProxyTarget = process.env.PLATFORM_API_PROXY_TARGET?.trim().rep
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1"],
+  experimental: {
+    proxyClientMaxBodySize: "22mb"
+  },
   images: {
     formats: ["image/avif", "image/webp"]
   },
+  serverExternalPackages: ["@napi-rs/canvas", "pdf-parse"],
   async rewrites() {
     return [
       {
