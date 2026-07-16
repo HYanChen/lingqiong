@@ -1,4 +1,10 @@
-import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
+import {
+  randomBytes,
+  randomUUID,
+  scrypt,
+  scryptSync,
+  timingSafeEqual
+} from "node:crypto";
 
 import {
   allAdminPermissions,
@@ -8,6 +14,7 @@ import {
   type AdminPermission,
   type AdminRole
 } from "@/lib/admin-permissions";
+import { withAdminPasswordVerificationSlot } from "@/lib/admin-login-guard";
 import { getFirstRow, getRows, readDatabase, writeDatabase } from "@/lib/database";
 
 type AdminUserRow = {
@@ -105,8 +112,21 @@ function hashPassword(password: string, salt = randomBytes(16).toString("hex")) 
   };
 }
 
-function verifyPassword(password: string, salt: string, hash: string) {
-  const actual = Buffer.from(hashPassword(password, salt).hash, "hex");
+function derivePassword(password: string, salt: string) {
+  return new Promise<Buffer>((resolve, reject) => {
+    scrypt(password, salt, 64, (error, derivedKey) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve(derivedKey);
+    });
+  });
+}
+
+async function verifyPassword(password: string, salt: string, hash: string) {
+  const actual = await derivePassword(password, salt);
   const expected = Buffer.from(hash, "hex");
 
   if (actual.length !== expected.length) {
@@ -222,38 +242,44 @@ export async function authenticateAdminUser(input: {
   password: string;
   username?: string;
 }) {
-  await ensureAdminUserSchema();
+  return withAdminPasswordVerificationSlot(async () => {
+    await ensureAdminUserSchema();
 
-  const username = normalizeUsername(input.username || defaultAdminUsername());
+    const username = normalizeUsername(input.username || defaultAdminUsername());
+    const row = await readDatabase((db) =>
+      getFirstRow<AdminUserRow>(
+        db,
+        `${selectAdminUserSql()}
+         WHERE username = ?`,
+        [username]
+      )
+    );
+    const passwordMatches = await verifyPassword(
+      input.password,
+      row?.password_salt ?? "wcu-admin-login-dummy-salt-v1",
+      row?.password_hash ?? Buffer.alloc(64).toString("hex")
+    );
 
-  const row = await readDatabase((db) =>
-    getFirstRow<AdminUserRow>(
-      db,
-      `${selectAdminUserSql()}
-       WHERE username = ? AND active = 1`,
-      [username]
-    )
-  );
+    if (!row?.active || !passwordMatches) {
+      return null;
+    }
 
-  if (!row || !verifyPassword(input.password, row.password_salt, row.password_hash)) {
-    return null;
-  }
+    const now = nextTimestamp(row.updated_at);
 
-  const now = nextTimestamp(row.updated_at);
+    await writeDatabase(async (db) => {
+      await db.execute("UPDATE admin_users SET last_login_at = ?, updated_at = ? WHERE id = ?", [
+        now,
+        now,
+        row.id
+      ]);
+    });
 
-  await writeDatabase(async (db) => {
-    await db.execute("UPDATE admin_users SET last_login_at = ?, updated_at = ? WHERE id = ?", [
-      now,
-      now,
-      row.id
-    ]);
+    return {
+      ...mapAdminUser(row),
+      lastLoginAt: now,
+      updatedAt: now
+    };
   });
-
-  return {
-    ...mapAdminUser(row),
-    lastLoginAt: now,
-    updatedAt: now
-  };
 }
 
 export async function upsertAdminUser(input: UpsertAdminUserInput) {

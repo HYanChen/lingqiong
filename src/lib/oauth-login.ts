@@ -11,7 +11,7 @@ import {
   platformUserFromFrontUser,
   setPlatformSession
 } from "@/lib/platform-auth";
-import { safeFrontRedirectPath } from "@/lib/safe-redirect";
+import { frontLoginDestination } from "@/lib/safe-redirect";
 
 type OAuthStatePayload = {
   exp: number;
@@ -160,7 +160,7 @@ export async function createOAuthAuthorizationRedirect(
 
   const nonce = randomNonce();
   const state = createOAuthState({
-    next: safeFrontRedirectPath(requestUrl.searchParams.get("next")),
+    next: frontLoginDestination(requestUrl.searchParams.get("next")),
     nonce,
     provider: providerValue
   });

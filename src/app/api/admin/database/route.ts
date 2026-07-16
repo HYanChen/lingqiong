@@ -79,12 +79,15 @@ export async function GET() {
 
   const stats = await readDatabase(async (db) => ({
     counts: {
+      apiAccountLinks: await countTable("api_account_links")(db),
+      billingAudits: await countTable("model_billing_audits")(db),
       frontUsers: await countTable("front_users")(db),
       inviteCodes: await countTable("invite_codes")(db),
       modelApiCalls: await countTable("model_api_calls")(db),
       modelApis: await countTable("model_api_configs")(db),
       projectTypes: await countTable("project_types")(db),
       projects: await countTable("projects")(db),
+      payments: await countTable("wechat_pay_orders")(db),
       skillRuns: await countTable("skill_runs")(db),
       skillTools: await countTable("skill_tools")(db),
       siteContent: await countTable("site_content")(db)
@@ -131,6 +134,27 @@ export async function GET() {
       name: item.name,
       ownerAccount: maskValue(item.owner_account),
       type: item.type
+    })),
+    recentPayments: (
+      await getRows<{
+        amount_fen: number;
+        created_at: string;
+        principal_id: string;
+        status: string;
+        trade_no: string;
+      }>(
+        db,
+        `SELECT trade_no, principal_id, amount_fen, status, created_at
+         FROM wechat_pay_orders
+         ORDER BY created_at DESC
+         LIMIT 8`
+      )
+    ).map((item) => ({
+      amount: `¥${(Number(item.amount_fen) / 100).toFixed(2)}`,
+      createdAt: item.created_at,
+      principalId: maskValue(item.principal_id, 4) ?? "••••",
+      status: item.status,
+      tradeNo: maskValue(item.trade_no, 4) ?? "••••"
     })),
     recentUsers: (
       await getRows<{

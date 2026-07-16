@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
@@ -19,7 +19,7 @@ import {
 
 import type { Brand, MediaMap } from "@/content/site";
 import { writeFrontUser, type FrontUser } from "@/lib/front-auth";
-import { safeFrontRedirectPath } from "@/lib/safe-redirect";
+import { frontLoginDestination } from "@/lib/safe-redirect";
 
 type AuthResponse = {
   message?: string;
@@ -77,34 +77,11 @@ type WechatStatusResponse = {
 };
 
 function cleanNextPath(value: string | null) {
-  return safeFrontRedirectPath(value);
+  return frontLoginDestination(value);
 }
 
 function qrImageUrl(scanUrl: string) {
   return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=12&data=${encodeURIComponent(scanUrl)}`;
-}
-
-const newApiPagePrefixes = [
-  "/channels",
-  "/dashboard",
-  "/keys",
-  "/models",
-  "/playground",
-  "/pricing",
-  "/profile",
-  "/rankings",
-  "/redemption-codes",
-  "/subscriptions",
-  "/system-settings",
-  "/usage-logs",
-  "/users",
-  "/wallet"
-];
-
-function isNewApiPagePath(path: string) {
-  return newApiPagePrefixes.some(
-    (prefix) => path === prefix || path.startsWith(`${prefix}/`)
-  );
 }
 
 export function PlatformLogin({
@@ -114,7 +91,6 @@ export function PlatformLogin({
   brand: Brand;
   media: MediaMap;
 }) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -140,20 +116,13 @@ export function PlatformLogin({
     (path: string, user: FrontUser) => {
       writeFrontUser(user);
 
-      if (path.startsWith("/_wcu-api/oidc/") || path.startsWith("/bookstack")) {
-        window.location.assign(path);
-        return;
-      }
-
-      if (isNewApiPagePath(path)) {
-        window.location.assign("/api");
-        return;
-      }
-
-      router.push(path);
-      router.refresh();
+      // A full replacement lets the newly issued HttpOnly session cookie take
+      // effect before protected user-center data is requested. Calling
+      // router.push() and router.refresh() back-to-back could refresh /login
+      // first and leave the successful user on the login screen.
+      window.location.replace(path);
     },
-    [router]
+    []
   );
 
   const requestWechatTicket = useCallback(async () => {
@@ -256,7 +225,7 @@ export function PlatformLogin({
         }
 
         if (result.user) {
-          setWechatMessage("已确认，正在进入统一平台");
+          setWechatMessage("已确认，正在进入用户中心");
           navigateAfterLogin(nextPath, result.user);
           return;
         }
@@ -268,7 +237,7 @@ export function PlatformLogin({
         }
 
         if (result.ticket?.status === "confirmed") {
-          setWechatMessage("已扫码确认，正在登录");
+          setWechatMessage("已确认，正在进入用户中心");
           return;
         }
 
@@ -320,7 +289,7 @@ export function PlatformLogin({
         return;
       }
 
-      setWechatMessage("已确认，正在登录");
+      setWechatMessage("已确认，正在进入用户中心");
     } catch {
       setWechatError("网络暂时不可用，请稍后再试。");
     } finally {
@@ -495,7 +464,7 @@ export function PlatformLogin({
               ) : (
                 <ArrowRight aria-hidden="true" className="h-4 w-4" />
               )}
-              登录并进入创作台
+              登录并进入用户中心
             </button>
           </form>
 

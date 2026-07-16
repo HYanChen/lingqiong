@@ -26,9 +26,9 @@ function envValue(key) {
 
 const serviceSecret =
   process.env.MODEL_SECURITY_SERVICE_SECRET ||
-  process.env.JEECG_SERVICE_SECRET ||
-  envValue("JEECG_SERVICE_SECRET") ||
-  "";
+  process.env.WCU_INTERNAL_SERVICE_SECRET ||
+  envValue("WCU_INTERNAL_SERVICE_SECRET") ||
+  "zhanji-wcu-internal-service-local-secret";
 
 function databaseConfig(database) {
   return {
@@ -81,13 +81,13 @@ function expect(result, status, label) {
 
 assert(
   serviceSecret,
-  "MODEL_SECURITY_SERVICE_SECRET 或 JEECG_SERVICE_SECRET 未配置"
+  "MODEL_SECURITY_SERVICE_SECRET 或 WCU_INTERNAL_SERVICE_SECRET 未配置"
 );
 const serviceAuth = (path, options = {}) =>
   request(path, {
     ...options,
     headers: {
-      "x-lingqiong-service-secret": serviceSecret,
+      "x-wcu-internal-service-secret": serviceSecret,
       ...(options.headers || {})
     }
   });

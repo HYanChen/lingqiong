@@ -3,14 +3,20 @@
 import { useSearchParams } from "next/navigation";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import {
+  Activity,
   ArrowDown,
   ArrowUp,
   BookOpen,
   Boxes,
   CheckCircle2,
+  ChevronRight,
   Clapperboard,
+  CreditCard,
   Database as DatabaseIcon,
   ExternalLink,
+  FolderKanban,
+  Globe2,
+  Home,
   KeyRound,
   LayoutDashboard,
   Loader2,
@@ -19,8 +25,12 @@ import {
   PlugZap,
   QrCode,
   Save,
+  Search,
+  Settings2,
+  ShieldCheck,
   Trash2,
   Upload,
+  UserCog,
   UsersRound,
   WandSparkles,
   XCircle
@@ -62,21 +72,52 @@ type AdminTab =
   | "works";
 
 const tabs: Array<{ id: AdminTab; label: string }> = [
-  { id: "overview", label: "平台总览" },
+  { id: "overview", label: "管理首页" },
   { id: "brand", label: "官网内容" },
-  { id: "works", label: "作品" },
-  { id: "types", label: "类型分类" },
-  { id: "skills", label: "Skill" },
-  { id: "services", label: "服务" },
-  { id: "universe", label: "世界观" },
-  { id: "workflow", label: "生产线" },
-  { id: "login", label: "登录设置" },
+  { id: "works", label: "作品管理" },
+  { id: "types", label: "项目类型" },
+  { id: "skills", label: "Skill 工作台" },
+  { id: "services", label: "服务内容" },
+  { id: "universe", label: "世界观内容" },
+  { id: "workflow", label: "生产线内容" },
+  { id: "login", label: "登录与微信" },
   { id: "knowledge", label: "知识库" },
-  { id: "api", label: "API网关" },
-  { id: "database", label: "数据库" },
-  { id: "users", label: "管理员" },
+  { id: "api", label: "模型与账务" },
+  { id: "database", label: "用户与项目" },
+  { id: "users", label: "管理员与权限" },
   { id: "audit", label: "审计日志" }
 ];
+
+const tabGroups: Array<{
+  label: string;
+  tabs: AdminTab[];
+}> = [
+  { label: "工作台", tabs: ["overview"] },
+  {
+    label: "官网运营",
+    tabs: ["brand", "works", "services", "universe", "workflow", "types"]
+  },
+  { label: "创作生态", tabs: ["skills", "knowledge"] },
+  { label: "模型与商业", tabs: ["api", "login"] },
+  { label: "平台治理", tabs: ["database", "users", "audit"] }
+];
+
+const tabIcons: Record<AdminTab, typeof LayoutDashboard> = {
+  api: PlugZap,
+  audit: ShieldCheck,
+  brand: Globe2,
+  database: UsersRound,
+  knowledge: BookOpen,
+  login: KeyRound,
+  overview: Home,
+  services: Boxes,
+  skills: WandSparkles,
+  types: FolderKanban,
+  universe: BookOpen,
+  users: UserCog,
+  workflow: Activity,
+  works: Clapperboard
+};
 
 const contentTabs: AdminTab[] = ["brand", "works", "services", "universe", "workflow"];
 const defaultTeamGroups: TeamMember["group"][] = [
@@ -87,12 +128,15 @@ const defaultTeamGroups: TeamMember["group"][] = [
 
 type DatabaseStats = {
   counts: {
+    apiAccountLinks: number;
+    billingAudits: number;
     frontUsers: number;
     inviteCodes: number;
     modelApiCalls: number;
     modelApis: number;
     projectTypes: number;
     projects: number;
+    payments: number;
     skillRuns: number;
     skillTools: number;
     siteContent: number;
@@ -112,6 +156,13 @@ type DatabaseStats = {
     ownerAccount: string | null;
     type: string;
   }>;
+  recentPayments: Array<{
+    amount: string;
+    createdAt: string;
+    principalId: string;
+    status: string;
+    tradeNo: string;
+  }>;
   recentUsers: Array<{
     account: string;
     contact: string | null;
@@ -129,6 +180,19 @@ type CurrentAdmin = {
   username: string;
 };
 
+type AdminTask = {
+  description: string;
+  focusId?: string;
+  group: "创作生态" | "官网运营" | "平台治理" | "模型与商业";
+  icon: typeof LayoutDashboard;
+  id: string;
+  keywords: string[];
+  label: string;
+  permission?: AdminPermission;
+  status: string;
+  tab: AdminTab;
+};
+
 const tabPermissions: Partial<Record<AdminTab, AdminPermission>> = {
   api: "modelApi.read",
   audit: "audit.read",
@@ -143,6 +207,34 @@ const tabPermissions: Partial<Record<AdminTab, AdminPermission>> = {
   workflow: "content.read",
   works: "content.read"
 };
+
+function hasAdminPermission(
+  admin: CurrentAdmin | null,
+  permission: AdminPermission
+) {
+  return Boolean(
+    admin &&
+      (admin.role === "owner" || admin.permissions.includes(permission))
+  );
+}
+
+function canAccessAdminTab(admin: CurrentAdmin | null, tab: AdminTab) {
+  if (!admin) {
+    return false;
+  }
+
+  if (
+    tab === "database" &&
+    admin.role !== "owner" &&
+    admin.role !== "admin"
+  ) {
+    return false;
+  }
+
+  const permission = tabPermissions[tab];
+
+  return !permission || hasAdminPermission(admin, permission);
+}
 
 type EditableProjectType = ProjectType & {
   draft?: boolean;
@@ -438,30 +530,14 @@ export function AdminDashboard() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [taskSearch, setTaskSearch] = useState("");
 
   const activeLabel = useMemo(
     () => tabs.find((tab) => tab.id === activeTab)?.label ?? "",
     [activeTab]
   );
   const visibleTabs = useMemo(
-    () =>
-      tabs.filter((tab) => {
-        const permission = tabPermissions[tab.id];
-
-        if (
-          tab.id === "database" &&
-          currentAdmin?.role !== "owner" &&
-          currentAdmin?.role !== "admin"
-        ) {
-          return false;
-        }
-
-        return (
-          !permission ||
-          currentAdmin?.role === "owner" ||
-          currentAdmin?.permissions.includes(permission)
-        );
-      }),
+    () => tabs.filter((tab) => canAccessAdminTab(currentAdmin, tab.id)),
     [currentAdmin]
   );
   const canSaveContent =
@@ -495,6 +571,186 @@ export function AdminDashboard() {
       ),
     [customTeamGroups, data?.teamMembers]
   );
+  const adminTasks = useMemo<AdminTask[]>(
+    () => [
+      {
+        description: "修改品牌名、首页文案、公司资料、联系方式与首页媒体。",
+        group: "官网运营",
+        icon: Globe2,
+        id: "site-content",
+        keywords: ["首页", "品牌", "公司", "联系方式", "图片", "视频", "文案"],
+        label: "官网与品牌",
+        status: "实时同步前台",
+        tab: "brand"
+      },
+      {
+        description: "新增人物、上传照片、调整分组与排序，维护人物详情页。",
+        focusId: "admin-team-editor",
+        group: "官网运营",
+        icon: UsersRound,
+        id: "team",
+        keywords: ["团队", "顾问", "人物", "照片", "头像", "分组"],
+        label: "团队与顾问",
+        status: `${data?.teamMembers.length ?? 0} 位人物`,
+        tab: "brand"
+      },
+      {
+        description: "维护作品卡片、详情信息、分类、封面与交付物。",
+        group: "官网运营",
+        icon: Clapperboard,
+        id: "works",
+        keywords: ["作品", "案例", "火种", "封面", "标签"],
+        label: "作品内容",
+        status: `${data?.works.length ?? 0} 部作品`,
+        tab: "works"
+      },
+      {
+        description: "配置服务项目、业务说明与官网服务页展示顺序。",
+        group: "官网运营",
+        icon: Boxes,
+        id: "services",
+        keywords: ["服务", "业务", "方案", "合作"],
+        label: "服务内容",
+        status: `${data?.services.length ?? 0} 项服务`,
+        tab: "services"
+      },
+      {
+        description: "维护五代叙事、章节内容和世界观时间线。",
+        group: "官网运营",
+        icon: BookOpen,
+        id: "universe",
+        keywords: ["世界观", "宇宙", "五代", "章节", "时间线"],
+        label: "世界观",
+        status: `${data?.universeChapters.length ?? 0} 个章节`,
+        tab: "universe"
+      },
+      {
+        description: "维护从开发到交付的生产步骤与前台生产线说明。",
+        group: "官网运营",
+        icon: Activity,
+        id: "workflow",
+        keywords: ["生产线", "流程", "步骤", "交付"],
+        label: "生产线",
+        status: `${data?.pipelineSteps.length ?? 0} 个步骤`,
+        tab: "workflow"
+      },
+      {
+        description: "管理新建项目可选类型、前台分类、排序和启停状态。",
+        group: "创作生态",
+        icon: FolderKanban,
+        id: "project-types",
+        keywords: ["项目", "类型", "分类", "新建", "创作"],
+        label: "项目类型",
+        status: `${projectTypes.length} 个类型`,
+        tab: "types"
+      },
+      {
+        description: "维护用户可调用的 Skill、执行模块、可见性与运行状态。",
+        group: "创作生态",
+        icon: WandSparkles,
+        id: "skills",
+        keywords: ["skill", "技能", "工作台", "剧本", "提示词"],
+        label: "Skill 工具",
+        status: `${databaseStats?.counts.skillTools ?? 0} 个工具`,
+        tab: "skills"
+      },
+      {
+        description: "进入知识空间、页面树和多维表格，维护项目知识资产。",
+        group: "创作生态",
+        icon: BookOpen,
+        id: "knowledge",
+        keywords: ["知识库", "文档", "多维表格", "飞书", "资产"],
+        label: "灵穹知识库",
+        status: "真实业务入口",
+        tab: "knowledge"
+      },
+      {
+        description: "查看注册用户、创作项目、邀请码与最近业务数据。",
+        group: "平台治理",
+        icon: UsersRound,
+        id: "creators-projects",
+        keywords: ["用户", "创作者", "项目", "邀请码", "注册"],
+        label: "用户与项目",
+        status: `${databaseStats?.counts.frontUsers ?? 0} 用户 / ${databaseStats?.counts.projects ?? 0} 项目`,
+        tab: "database"
+      },
+      {
+        description: "查看用户独立余额、充值入口、支付渠道和真实用量记录。",
+        focusId: "admin-billing",
+        group: "模型与商业",
+        icon: CreditCard,
+        id: "billing",
+        keywords: ["充值", "支付", "余额", "账务", "订单", "额度", "用量"],
+        label: "充值与账务",
+        permission: "system.read",
+        status: `${databaseStats?.counts.payments ?? 0} 笔支付单`,
+        tab: "api"
+      },
+      {
+        description: "配置平台可用模型、生成参数、系统提示词与 API 网关。",
+        focusId: "admin-models",
+        group: "模型与商业",
+        icon: PlugZap,
+        id: "models",
+        keywords: ["模型", "api", "网关", "key", "参数", "提示词"],
+        label: "模型与 API",
+        status: `${databaseStats?.counts.modelApis ?? 0} 个配置`,
+        tab: "api"
+      },
+      {
+        description: "配置微信扫码、账号密码与第三方 OAuth 登录方式。",
+        group: "模型与商业",
+        icon: KeyRound,
+        id: "login",
+        keywords: ["登录", "微信", "扫码", "oauth", "账号", "密码"],
+        label: "登录配置",
+        status: loginSettings.wechat.enabled ? "微信已开启" : "微信未开启",
+        tab: "login"
+      },
+      {
+        description: "分配后台角色与权限，维护管理员账号和访问边界。",
+        group: "平台治理",
+        icon: UserCog,
+        id: "admin-users",
+        keywords: ["管理员", "权限", "角色", "账号", "安全"],
+        label: "管理员与权限",
+        status: "权限隔离",
+        tab: "users"
+      },
+      {
+        description: "追踪后台登录、内容修改和敏感配置变更记录。",
+        group: "平台治理",
+        icon: ShieldCheck,
+        id: "audit",
+        keywords: ["审计", "日志", "安全", "记录", "操作"],
+        label: "安全审计",
+        status: "全程留痕",
+        tab: "audit"
+      }
+    ],
+    [data, databaseStats, loginSettings.wechat.enabled, projectTypes.length]
+  );
+  const filteredAdminTasks = useMemo(() => {
+    const query = taskSearch.trim().toLowerCase();
+
+    return adminTasks.filter((task) => {
+      if (
+        !canAccessAdminTab(currentAdmin, task.tab) ||
+        (task.permission && !hasAdminPermission(currentAdmin, task.permission))
+      ) {
+        return false;
+      }
+
+      if (!query) {
+        return true;
+      }
+
+      return [task.label, task.description, task.group, ...task.keywords]
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
+    });
+  }, [adminTasks, currentAdmin, taskSearch]);
 
   async function loadContent() {
     const response = await fetch("/_wcu-api/admin/content", { cache: "no-store" });
@@ -557,14 +813,39 @@ export function AdminDashboard() {
         authenticated: boolean;
         user?: CurrentAdmin | null;
       };
-      setAuthenticated(result.authenticated);
-      setCurrentAdmin(result.user ?? null);
+      const admin = result.user ?? null;
+      const sessionAuthenticated = Boolean(result.authenticated && admin);
 
-      if (result.authenticated) {
-        await loadContent();
-        await loadProjectTypes();
-        await loadLoginSettings();
-        await loadDatabaseStats();
+      setAuthenticated(sessionAuthenticated);
+      setCurrentAdmin(admin);
+
+      if (sessionAuthenticated && admin) {
+        const permittedLoads: Promise<void>[] = [];
+
+        if (hasAdminPermission(admin, "content.read")) {
+          permittedLoads.push(loadContent());
+        } else {
+          // Content editors need the persisted site data. Other roles must still be
+          // able to use their own modules without requesting or exposing that data.
+          setData(defaultSiteData);
+        }
+
+        if (hasAdminPermission(admin, "projects.read")) {
+          permittedLoads.push(loadProjectTypes());
+        }
+
+        if (hasAdminPermission(admin, "settings.read")) {
+          permittedLoads.push(loadLoginSettings());
+        }
+
+        if (canAccessAdminTab(admin, "database")) {
+          permittedLoads.push(loadDatabaseStats());
+        }
+
+        setActiveTab((current) =>
+          canAccessAdminTab(admin, current) ? current : "overview"
+        );
+        await Promise.allSettled(permittedLoads);
       }
 
       setLoading(false);
@@ -992,6 +1273,29 @@ export function AdminDashboard() {
     await loadDatabaseStats();
   }
 
+  function openAdminArea(tab: AdminTab, focusId?: string) {
+    if (!canAccessAdminTab(currentAdmin, tab)) {
+      setError("当前管理员账号没有访问该模块的权限。");
+      return;
+    }
+
+    setActiveTab(tab);
+    setTaskSearch("");
+
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", tab);
+    window.history.replaceState(null, "", `${url.pathname}${url.search}`);
+
+    if (focusId) {
+      window.setTimeout(() => {
+        document.getElementById(focusId)?.scrollIntoView({
+          behavior: "smooth",
+          block: "start"
+        });
+      }, 80);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center px-5 py-12">
@@ -1020,207 +1324,338 @@ export function AdminDashboard() {
   }
 
   return (
-    <section className="min-h-screen px-5 py-12 md:px-8">
-      <div className="mx-auto max-w-7xl">
-        <div className="flex flex-col gap-5 border-b border-white/10 pb-8 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-cyan-200">
-              unified platform
-            </p>
-            <h1 className="mt-4 text-4xl font-semibold text-stone-50 md:text-6xl">
-              战纪宇宙统一平台
-            </h1>
-            <p className="mt-4 max-w-2xl text-sm leading-7 text-stone-400">
-              当前模块：{activeLabel}。官网内容、用户项目、MySQL 数据库、灵穹知识库与灵穹 API 网关集中在这一个后台管理。
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            {canSaveContent ? (
-              <button
-                className="inline-flex items-center gap-2 rounded-lg border border-white/15 px-4 py-3 text-sm font-semibold text-stone-100 transition hover:bg-white/10"
-                onClick={resetToDefault}
-                type="button"
-              >
-                恢复默认
-              </button>
-            ) : null}
-            <button
-              className="inline-flex items-center gap-2 rounded-lg border border-white/15 px-4 py-3 text-sm font-semibold text-stone-100 transition hover:bg-white/10"
-              onClick={logout}
-              type="button"
-            >
-              <LogOut aria-hidden="true" className="h-4 w-4" />
-              退出
-            </button>
-            {canSaveContent ? (
-              <button
-                className="inline-flex items-center gap-2 rounded-lg bg-stone-50 px-5 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={saving}
-                onClick={save}
-                type="button"
-              >
-                {saving ? (
-                  <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Save aria-hidden="true" className="h-4 w-4" />
-                )}
-                保存
-              </button>
-            ) : null}
-          </div>
-        </div>
+    <section className="min-h-screen bg-[#05070a] text-stone-100">
+      <div className="mx-auto flex min-h-screen max-w-[1680px]">
+        <aside className="sticky top-0 hidden h-screen w-72 shrink-0 flex-col border-r border-white/10 bg-[#071018]/95 px-4 py-5 lg:flex">
+          <button
+            className="flex items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-white/[0.05]"
+            onClick={() => openAdminArea("overview")}
+            type="button"
+          >
+            <span className="grid h-11 w-11 place-items-center rounded-xl border border-cyan-300/30 bg-cyan-300/10 text-cyan-100 shadow-[0_0_28px_rgba(34,211,238,0.12)]">
+              <Settings2 aria-hidden="true" className="h-5 w-5" />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-base font-semibold text-white">战纪宇宙</span>
+              <span className="mt-0.5 block text-[10px] uppercase tracking-[0.25em] text-stone-500">
+                Operations
+              </span>
+            </span>
+          </button>
 
-        {message ? (
-          <p className="mt-5 flex items-center gap-2 rounded-lg border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-100">
-            <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
-            {message}
-          </p>
-        ) : null}
-        {error ? (
-          <p className="mt-5 flex items-center gap-2 rounded-lg border border-red-300/20 bg-red-300/10 px-4 py-3 text-sm text-red-100">
-            <XCircle aria-hidden="true" className="h-4 w-4" />
-            {error}
-          </p>
-        ) : null}
-
-        <div className="mt-8 flex flex-wrap gap-2">
-          {visibleTabs.map((tab) => (
-            <button
-              className={cn(
-                "rounded-lg border px-4 py-2 text-sm transition",
-                activeTab === tab.id
-                  ? "border-cyan-200 bg-cyan-200 text-zinc-950"
-                  : "border-white/10 bg-white/[0.03] text-stone-300 hover:border-cyan-200/50 hover:text-white"
-              )}
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              type="button"
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-8">
-          {activeTab === "overview" ? (
-            <div className="space-y-5">
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {[
-                  {
-                    icon: LayoutDashboard,
-                    label: "官网内容",
-                    value: databaseStats?.counts.siteContent ?? "-",
-                    note: "品牌、作品、服务与页面媒体"
-                  },
-                  {
-                    icon: Boxes,
-                    label: "类型分类",
-                    value: databaseStats?.counts.projectTypes ?? "-",
-                    note: "创建页类型与前台作品分类"
-                  },
-                  {
-                    icon: UsersRound,
-                    label: "注册用户",
-                    value: databaseStats?.counts.frontUsers ?? "-",
-                    note: "邀请码注册后的前台用户"
-                  },
-                  {
-                    icon: KeyRound,
-                    label: "统一登录",
-                    value: loginSettings.wechat.enabled ? "微信开启" : "微信关闭",
-                    note: "后台密码与微信扫码登录配置"
-                  },
-                  {
-                    icon: Clapperboard,
-                    label: "创作项目",
-                    value: databaseStats?.counts.projects ?? "-",
-                    note: "生产线进入画布后的项目"
-                  },
-                  {
-                    icon: PlugZap,
-                    label: "模型调用",
-                    value: databaseStats?.counts.modelApiCalls ?? "-",
-                    note: "画布通过网关发起的生成"
-                  },
-                  {
-                    icon: WandSparkles,
-                    label: "Skill 工具",
-                    value: databaseStats?.counts.skillTools ?? "-",
-                    note: "用户可直接调用的 Skill"
-                  },
-                  {
-                    icon: BookOpen,
-                    label: "知识库",
-                    value: "已接入",
-                    note: "灵穹知识库文档、设定与生产规范"
-                  }
-                ].map((item) => {
-                  const Icon = item.icon;
-
-                  return (
-                    <article
-                      className="rounded-lg border border-white/10 bg-white/[0.035] p-5"
-                      key={item.label}
-                    >
-                      <Icon aria-hidden="true" className="h-5 w-5 text-cyan-100" />
-                      <p className="mt-5 text-xs text-stone-500">{item.label}</p>
-                      <p className="mt-2 text-3xl font-semibold text-stone-50">
-                        {item.value}
-                      </p>
-                      <p className="mt-2 text-xs leading-6 text-stone-500">
-                        {item.note}
-                      </p>
-                    </article>
+          <nav aria-label="后台主导航" className="mt-6 min-h-0 flex-1 overflow-y-auto pr-1">
+            <div className="space-y-6">
+              {tabGroups.map((group) => {
+                const groupTabs = group.tabs
+                  .map((tabId) => tabs.find((tab) => tab.id === tabId))
+                  .filter(
+                    (tab): tab is { id: AdminTab; label: string } =>
+                      Boolean(tab && visibleTabs.some((item) => item.id === tab.id))
                   );
-                })}
+
+                if (!groupTabs.length) {
+                  return null;
+                }
+
+                return (
+                  <div key={group.label}>
+                    <p className="px-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-stone-600">
+                      {group.label}
+                    </p>
+                    <div className="mt-2 space-y-1">
+                      {groupTabs.map((tab) => {
+                        const Icon = tabIcons[tab.id];
+
+                        return (
+                          <button
+                            className={cn(
+                              "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition",
+                              activeTab === tab.id
+                                ? "bg-cyan-200 text-zinc-950 shadow-[0_10px_30px_rgba(103,232,249,0.12)]"
+                                : "text-stone-400 hover:bg-white/[0.055] hover:text-white"
+                            )}
+                            key={tab.id}
+                            onClick={() => openAdminArea(tab.id)}
+                            type="button"
+                          >
+                            <Icon aria-hidden="true" className="h-4 w-4 shrink-0" />
+                            <span className="min-w-0 flex-1 truncate">{tab.label}</span>
+                            {activeTab === tab.id ? (
+                              <ChevronRight aria-hidden="true" className="h-4 w-4" />
+                            ) : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </nav>
+
+          <div className="mt-5 border-t border-white/10 pt-4">
+            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <p className="truncate text-sm font-semibold text-stone-100">
+                {currentAdmin?.username}
+              </p>
+              <p className="mt-1 text-xs text-stone-500">
+                {currentAdmin?.role === "owner" ? "平台所有者" : "后台管理员"}
+              </p>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <a
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 px-3 py-2.5 text-xs text-stone-400 transition hover:border-cyan-200/40 hover:text-white"
+                href="/"
+                target="_blank"
+              >
+                <ExternalLink aria-hidden="true" className="h-3.5 w-3.5" />
+                查看官网
+              </a>
+              <button
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 px-3 py-2.5 text-xs text-stone-400 transition hover:border-red-200/30 hover:text-red-100"
+                onClick={logout}
+                type="button"
+              >
+                <LogOut aria-hidden="true" className="h-3.5 w-3.5" />
+                退出
+              </button>
+            </div>
+          </div>
+        </aside>
+
+        <div className="min-w-0 flex-1">
+          <header className="sticky top-0 z-30 border-b border-white/10 bg-[#05070a]/90 px-5 py-4 backdrop-blur-xl md:px-8">
+            <div className="mx-auto flex max-w-7xl flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-xs text-stone-500">
+                  <span>战纪宇宙运营后台</span>
+                  <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
+                  <span className="text-cyan-100">{activeLabel}</span>
+                </div>
+                <h1 className="mt-1 truncate text-2xl font-semibold text-white">
+                  {activeLabel}
+                </h1>
               </div>
 
-              <div className="grid gap-5 lg:grid-cols-3">
-                <Card title="一体化后台结构">
-                  <div className="space-y-3 text-sm leading-7 text-stone-400">
-                    <p>官网内容由战纪宇宙后台维护，写入 MySQL。</p>
-                    <p>模型渠道、令牌、额度和调用日志由灵穹 API 网关承接。</p>
-                    <p>Skill 工作台已合并为站内模块，统一使用 /skills 和站内 API。</p>
-                    <p>灵穹知识库通过 /knowledge 提供站内页面树与多维表格，历史 BookStack 资料保留在 /bookstack/。</p>
-                    <p>前台画布只调用站内接口，再由服务端转发到统一模型网关。</p>
-                  </div>
-                </Card>
-                <Card title="快捷入口">
-                  <div className="grid gap-3">
-                    {[
-                      { id: "brand" as AdminTab, label: "编辑官网内容" },
-                      { id: "types" as AdminTab, label: "管理类型分类" },
-                      { id: "skills" as AdminTab, label: "管理 Skill 工具" },
-                      { id: "login" as AdminTab, label: "配置统一登录" },
-                      { id: "knowledge" as AdminTab, label: "进入知识库" },
-                      { id: "api" as AdminTab, label: "进入 API 网关" },
-                      { id: "database" as AdminTab, label: "查看数据库" },
-                      { id: "users" as AdminTab, label: "管理后台账号" },
-                      { id: "audit" as AdminTab, label: "查看审计日志" }
-                    ].filter((item) => visibleTabs.some((tab) => tab.id === item.id)).map((item) => (
-                      <button
-                        className="flex items-center justify-between rounded-lg border border-white/10 bg-black/20 px-4 py-3 text-left text-sm font-semibold text-stone-100 transition hover:border-cyan-200/50 hover:text-cyan-50"
-                        key={item.id}
-                        onClick={() => setActiveTab(item.id)}
-                        type="button"
-                      >
-                        {item.label}
-                        <Boxes aria-hidden="true" className="h-4 w-4 text-cyan-100" />
-                      </button>
-                    ))}
-                  </div>
-                </Card>
-                <Card title="统一调用链">
-                  <div className="rounded-lg border border-cyan-200/15 bg-cyan-200/10 p-4 text-xs leading-6 text-cyan-50/80">
-                    官网与画布 → /_wcu-api → 战纪宇宙服务端 → /v1 → 灵穹 API → 模型渠道
-                  </div>
-                  <p className="mt-4 text-sm leading-7 text-stone-400">
-                    管理员只需要进入这个后台，即可维护官网、检查数据、配置模型并打开网关控制台。
-                  </p>
-                </Card>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <label className="relative block min-w-0 sm:w-80">
+                  <Search
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-500"
+                  />
+                  <input
+                    aria-label="搜索后台功能"
+                    className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.04] pl-10 pr-4 text-sm text-stone-100 outline-none transition placeholder:text-stone-600 focus:border-cyan-200/45 focus:bg-white/[0.065]"
+                    onChange={(event) => {
+                      setTaskSearch(event.target.value);
+                      setActiveTab("overview");
+                    }}
+                    placeholder="搜索要修改的内容，例如：团队、支付、Skill"
+                    value={taskSearch}
+                  />
+                </label>
+                {canSaveContent ? (
+                  <>
+                    <button
+                      className="inline-flex h-11 items-center justify-center rounded-xl border border-white/10 px-4 text-sm font-semibold text-stone-300 transition hover:bg-white/[0.06] hover:text-white"
+                      onClick={resetToDefault}
+                      type="button"
+                    >
+                      恢复默认
+                    </button>
+                    <button
+                      className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-cyan-100 px-5 text-sm font-semibold text-zinc-950 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={saving}
+                      onClick={save}
+                      type="button"
+                    >
+                      {saving ? (
+                        <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save aria-hidden="true" className="h-4 w-4" />
+                      )}
+                      保存到前台
+                    </button>
+                  </>
+                ) : null}
               </div>
             </div>
-          ) : null}
+          </header>
+
+          <main className="mx-auto max-w-7xl px-5 py-6 md:px-8 md:py-8">
+            <div className="mb-6 flex gap-2 overflow-x-auto pb-2 lg:hidden">
+              {visibleTabs.map((tab) => {
+                const Icon = tabIcons[tab.id];
+
+                return (
+                  <button
+                    className={cn(
+                      "inline-flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-xs transition",
+                      activeTab === tab.id
+                        ? "border-cyan-200 bg-cyan-200 text-zinc-950"
+                        : "border-white/10 bg-white/[0.03] text-stone-400"
+                    )}
+                    key={tab.id}
+                    onClick={() => openAdminArea(tab.id)}
+                    type="button"
+                  >
+                    <Icon aria-hidden="true" className="h-3.5 w-3.5" />
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {message ? (
+              <p className="mb-5 flex items-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-100">
+                <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+                {message}
+              </p>
+            ) : null}
+            {error ? (
+              <p className="mb-5 flex items-center gap-2 rounded-xl border border-red-300/20 bg-red-300/10 px-4 py-3 text-sm text-red-100">
+                <XCircle aria-hidden="true" className="h-4 w-4" />
+                {error}
+              </p>
+            ) : null}
+
+            <div>
+              {activeTab === "overview" ? (
+                <div className="space-y-6">
+                  <section className="relative overflow-hidden rounded-2xl border border-cyan-200/20 bg-[linear-gradient(120deg,rgba(8,47,73,0.78),rgba(8,15,24,0.96)_58%,rgba(54,28,8,0.54))] p-6 md:p-8">
+                    <div className="pointer-events-none absolute right-[-5rem] top-[-7rem] h-72 w-72 rounded-full bg-cyan-300/10 blur-3xl" />
+                    <div className="relative max-w-3xl">
+                      <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-200">
+                        Management home
+                      </p>
+                      <h2 className="mt-4 text-3xl font-semibold text-white md:text-4xl">
+                        今天要管理什么？
+                      </h2>
+                      <p className="mt-3 text-sm leading-7 text-stone-300">
+                        按业务目标进入真实管理功能。无需记住技术模块名称，搜索“团队”“支付”“作品”等关键词即可直达。
+                      </p>
+                      <div className="mt-6 flex flex-wrap gap-2 text-xs text-stone-400">
+                        <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">
+                          官网内容实时写入 MySQL
+                        </span>
+                        <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">
+                          前后台共用真实业务 API
+                        </span>
+                        <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1.5">
+                          权限与操作审计已启用
+                        </span>
+                      </div>
+                    </div>
+                  </section>
+
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    {[
+                      {
+                        icon: UsersRound,
+                        label: "注册用户",
+                        value: databaseStats?.counts.frontUsers ?? "-"
+                      },
+                      {
+                        icon: FolderKanban,
+                        label: "创作项目",
+                        value: databaseStats?.counts.projects ?? "-"
+                      },
+                      {
+                        icon: PlugZap,
+                        label: "模型调用",
+                        value: databaseStats?.counts.modelApiCalls ?? "-"
+                      },
+                      {
+                        icon: WandSparkles,
+                        label: "Skill 运行",
+                        value: databaseStats?.counts.skillRuns ?? "-"
+                      }
+                    ].map((item) => {
+                      const Icon = item.icon;
+
+                      return (
+                      <article
+                        className="rounded-xl border border-white/10 bg-white/[0.035] p-4"
+                        key={item.label}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-xs text-stone-500">{item.label}</p>
+                          <Icon aria-hidden="true" className="h-4 w-4 text-cyan-100" />
+                        </div>
+                        <p className="mt-3 text-2xl font-semibold text-white">
+                          {item.value}
+                        </p>
+                      </article>
+                      );
+                    })}
+                  </div>
+
+                  <section>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200">
+                          Task center
+                        </p>
+                        <h2 className="mt-2 text-2xl font-semibold text-white">管理任务</h2>
+                      </div>
+                      <p className="text-xs text-stone-500">
+                        {taskSearch
+                          ? `找到 ${filteredAdminTasks.length} 个匹配功能`
+                          : `共 ${filteredAdminTasks.length} 个可用功能`}
+                      </p>
+                    </div>
+
+                    {filteredAdminTasks.length ? (
+                      <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                        {filteredAdminTasks.map((task) => {
+                          const Icon = task.icon;
+
+                          return (
+                            <button
+                              className="group flex min-h-48 flex-col rounded-2xl border border-white/10 bg-white/[0.035] p-5 text-left transition hover:-translate-y-0.5 hover:border-cyan-200/40 hover:bg-cyan-200/[0.055]"
+                              key={task.id}
+                              onClick={() => openAdminArea(task.tab, task.focusId)}
+                              type="button"
+                            >
+                              <div className="flex w-full items-start justify-between gap-4">
+                                <span className="grid h-11 w-11 place-items-center rounded-xl border border-cyan-200/20 bg-cyan-200/10 text-cyan-100">
+                                  <Icon aria-hidden="true" className="h-5 w-5" />
+                                </span>
+                                <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[10px] text-stone-500">
+                                  {task.group}
+                                </span>
+                              </div>
+                              <h3 className="mt-5 text-lg font-semibold text-white">
+                                {task.label}
+                              </h3>
+                              <p className="mt-2 flex-1 text-xs leading-6 text-stone-400">
+                                {task.description}
+                              </p>
+                              <div className="mt-4 flex w-full items-center justify-between gap-3 border-t border-white/10 pt-4">
+                                <span className="text-xs text-cyan-100/80">{task.status}</span>
+                                <span className="inline-flex items-center gap-1 text-xs font-semibold text-stone-300 transition group-hover:text-cyan-100">
+                                  进入修改
+                                  <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="mt-5 rounded-2xl border border-dashed border-white/15 bg-white/[0.025] px-6 py-12 text-center">
+                        <Search aria-hidden="true" className="mx-auto h-6 w-6 text-stone-600" />
+                        <p className="mt-4 text-sm font-semibold text-stone-300">
+                          没有找到“{taskSearch}”
+                        </p>
+                        <p className="mt-2 text-xs text-stone-600">
+                          可尝试搜索团队、作品、项目、充值、登录、Skill 或模型。
+                        </p>
+                      </div>
+                    )}
+                  </section>
+                </div>
+              ) : null}
 
           {activeTab === "brand" ? (
             <div className="grid gap-5 xl:grid-cols-3">
@@ -1376,7 +1811,7 @@ export function AdminDashboard() {
                   </p>
                 </div>
               </Card>
-              <div className="xl:col-span-3">
+              <div className="scroll-mt-28 xl:col-span-3" id="admin-team-editor">
                 <Card title="团队与顾问">
                   <div className="mb-5 flex flex-col gap-4 rounded-lg border border-cyan-200/15 bg-cyan-200/10 p-4 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-xs leading-6 text-cyan-50/80">
@@ -2190,9 +2625,43 @@ export function AdminDashboard() {
           {activeTab === "skills" ? <SkillAdmin /> : null}
 
           {activeTab === "api" ? (
-            <div className="space-y-5">
-              <NewApiConsole />
-              <ModelApiAdmin />
+            <div className="space-y-8">
+              {hasAdminPermission(currentAdmin, "system.read") ? (
+                <section className="scroll-mt-28" id="admin-billing">
+                  <div className="mb-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200">
+                      Billing & accounts
+                    </p>
+                    <h2 className="mt-2 text-2xl font-semibold text-white">
+                      用户账户与充值账务
+                    </h2>
+                    <p className="mt-2 text-sm leading-7 text-stone-400">
+                      查看灵穹 API 账户连接状态，并进入真实用户余额、支付渠道和用量记录。
+                    </p>
+                  </div>
+                  <NewApiConsole />
+                </section>
+              ) : null}
+              <section className="scroll-mt-28" id="admin-models">
+                <div
+                  className={cn(
+                    "mb-4",
+                    hasAdminPermission(currentAdmin, "system.read") &&
+                      "border-t border-white/10 pt-8"
+                  )}
+                >
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200">
+                    Models
+                  </p>
+                  <h2 className="mt-2 text-2xl font-semibold text-white">
+                    模型能力配置
+                  </h2>
+                  <p className="mt-2 text-sm leading-7 text-stone-400">
+                    维护真实模型渠道、默认参数和系统提示词，前台生成任务按用户账户独立扣费。
+                  </p>
+                </div>
+                <ModelApiAdmin />
+              </section>
             </div>
           ) : null}
 
@@ -2206,7 +2675,7 @@ export function AdminDashboard() {
 
           {activeTab === "database" ? (
             <div className="space-y-5">
-              <Card title="数据库状态">
+              <Card title="用户、项目与业务数据">
                 {databaseStats ? (
                   <div className="space-y-5">
                     <div className="flex items-start gap-3 rounded-lg border border-cyan-200/20 bg-cyan-200/10 p-4">
@@ -2216,7 +2685,7 @@ export function AdminDashboard() {
                       />
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-cyan-50">
-                          MySQL 已启用
+                          战纪宇宙业务库已连接
                         </p>
                         <p className="mt-2 break-all text-xs leading-6 text-stone-400">
                           {databaseStats.path}
@@ -2231,6 +2700,9 @@ export function AdminDashboard() {
                         ["注册用户", databaseStats.counts.frontUsers],
                         ["类型分类", databaseStats.counts.projectTypes],
                         ["创作项目", databaseStats.counts.projects],
+                        ["API 账户关联", databaseStats.counts.apiAccountLinks],
+                        ["支付订单", databaseStats.counts.payments],
+                        ["计费审计", databaseStats.counts.billingAudits],
                         ["模型 API", databaseStats.counts.modelApis],
                         ["模型调用", databaseStats.counts.modelApiCalls]
                       ].map(([label, value]) => (
@@ -2245,6 +2717,26 @@ export function AdminDashboard() {
                         </div>
                       ))}
                     </div>
+
+                    <div className="flex flex-wrap gap-3">
+                      <a
+                        className="inline-flex items-center gap-2 rounded-lg bg-cyan-100 px-4 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-white"
+                        href="/projects"
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        <FolderKanban aria-hidden="true" className="h-4 w-4" />
+                        打开全部项目
+                      </a>
+                      <button
+                        className="inline-flex items-center gap-2 rounded-lg border border-white/15 px-4 py-3 text-sm font-semibold text-stone-100 transition hover:bg-white/10"
+                        onClick={() => openAdminArea("api")}
+                        type="button"
+                      >
+                        <CreditCard aria-hidden="true" className="h-4 w-4" />
+                        查看充值与账务
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <button
@@ -2258,7 +2750,7 @@ export function AdminDashboard() {
               </Card>
 
               {databaseStats ? (
-                <div className="grid gap-5 xl:grid-cols-3">
+                <div className="grid gap-5 xl:grid-cols-2 2xl:grid-cols-4">
                   <Card title="邀请码">
                     <div className="space-y-3">
                       {databaseStats.inviteCodes.map((item) => (
@@ -2324,10 +2816,49 @@ export function AdminDashboard() {
                       )}
                     </div>
                   </Card>
+
+                  <Card title="最近支付订单">
+                    <div className="space-y-3">
+                      {databaseStats.recentPayments.length ? (
+                        databaseStats.recentPayments.map((item) => (
+                          <div
+                            className="rounded-lg border border-white/10 bg-black/20 p-4"
+                            key={item.tradeNo}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="font-mono text-xs text-stone-400">
+                                {item.tradeNo}
+                              </p>
+                              <span
+                                className={cn(
+                                  "rounded-full border px-2 py-1 text-[10px]",
+                                  item.status === "paid"
+                                    ? "border-emerald-200/20 bg-emerald-200/10 text-emerald-100"
+                                    : "border-amber-200/20 bg-amber-200/10 text-amber-100"
+                                )}
+                              >
+                                {item.status === "paid" ? "已支付" : item.status}
+                              </span>
+                            </div>
+                            <p className="mt-3 text-lg font-semibold text-stone-100">
+                              {item.amount}
+                            </p>
+                            <p className="mt-1 text-xs text-stone-500">
+                              用户 {item.principalId}
+                            </p>
+                          </div>
+                        ))
+                      ) : (
+                        <EmptyState />
+                      )}
+                    </div>
+                  </Card>
                 </div>
               ) : null}
             </div>
           ) : null}
+            </div>
+          </main>
         </div>
       </div>
     </section>

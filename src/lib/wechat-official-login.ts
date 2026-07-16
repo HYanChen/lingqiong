@@ -6,7 +6,10 @@ import {
   platformUserFromFrontUser,
   setPlatformSession
 } from "@/lib/platform-auth";
-import { safeFrontRedirectPath } from "@/lib/safe-redirect";
+import {
+  frontLoginDestination,
+  safeFrontRedirectPath
+} from "@/lib/safe-redirect";
 import {
   confirmWechatLoginTicket,
   getWechatLoginTicket
@@ -138,7 +141,7 @@ export async function createWechatOfficialAuthorization(requestUrl: URL) {
   }
 
   const nonce = randomUUID().replaceAll("-", "");
-  const next = safeFrontRedirectPath(requestUrl.searchParams.get("next"));
+  const next = frontLoginDestination(requestUrl.searchParams.get("next"));
   const ticket = requestUrl.searchParams.get("ticket")?.trim();
 
   if (ticket) {

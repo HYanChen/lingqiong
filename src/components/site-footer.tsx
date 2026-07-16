@@ -62,7 +62,10 @@ export function SiteFooter({ data }: { data: SiteData }) {
   ];
 
   return (
-    <footer className="relative overflow-hidden border-t border-white/10 bg-[#050506] text-stone-100">
+    <footer
+      className="relative overflow-hidden border-t border-white/10 bg-[#050506] text-stone-100"
+      data-site-shell="footer"
+    >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(34,211,238,0.12),transparent_28rem),radial-gradient(circle_at_86%_24%,rgba(180,83,9,0.10),transparent_30rem),linear-gradient(180deg,rgba(9,9,11,0.86),#050506_58%)]" />
       <div className="cinema-grid pointer-events-none absolute inset-0 opacity-20" />
       <div className="relative mx-auto max-w-7xl px-5 py-10 md:px-8">

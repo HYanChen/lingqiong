@@ -399,6 +399,17 @@ const schemaStatements = [
     updated_at VARCHAR(40) NOT NULL
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
   ,
+  `CREATE TABLE IF NOT EXISTS admin_login_throttles (
+    scope VARCHAR(20) NOT NULL,
+    key_hash CHAR(64) NOT NULL,
+    failure_count INT NOT NULL DEFAULT 0,
+    window_started_at VARCHAR(40) NOT NULL,
+    locked_until VARCHAR(40),
+    updated_at VARCHAR(40) NOT NULL,
+    PRIMARY KEY (scope, key_hash),
+    INDEX idx_admin_login_throttles_locked (locked_until),
+    INDEX idx_admin_login_throttles_updated (updated_at)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS admin_audit_logs (
     id VARCHAR(191) PRIMARY KEY,
     admin_user_id VARCHAR(191),

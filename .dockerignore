@@ -11,10 +11,10 @@ tmp
 .pnpm-store
 .vscode
 work_assets
-vendor/*
-!vendor/jeecg-boot/
-!vendor/jeecg-boot/**
-vendor/jeecg-boot/.git
-vendor/jeecg-boot/**/node_modules
-vendor/jeecg-boot/**/dist
+vendor
+docs
+coverage
+test-results
+playwright-report
+*.tsbuildinfo
 .playwright-mcp

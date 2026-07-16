@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 
 const baseUrl = (process.env.WCU_AUDIT_BASE_URL || "http://localhost").replace(/\/$/u, "");
-const serviceSecret = process.env.LINGQIONG_SERVICE_SECRET || "zhanji-jeecg-service-local-secret";
+const serviceSecret =
+  process.env.WCU_INTERNAL_SERVICE_SECRET ||
+  "zhanji-wcu-internal-service-local-secret";
 const headers = {
   "content-type": "application/json",
-  "x-lingqiong-service-secret": serviceSecret
+  "x-wcu-internal-service-secret": serviceSecret
 };
 const id = `skill-linkage-audit-${Date.now()}`;
 let uploadedScriptPath = "";
@@ -96,7 +98,7 @@ try {
   invalidUploadForm.set("file", new Blob(["invalid"], { type: "application/octet-stream" }), "错误格式.exe");
   const invalidUpload = await fetch(`${baseUrl}/_wcu-api/skills/script-upload`, {
     body: invalidUploadForm,
-    headers: { "x-lingqiong-service-secret": serviceSecret },
+    headers: { "x-wcu-internal-service-secret": serviceSecret },
     method: "POST"
   });
   assert(invalidUpload.status === 415, "剧本上传拒绝不支持的文件格式");
@@ -106,7 +108,7 @@ try {
   uploadForm.set("file", new Blob([scriptText], { type: "text/plain" }), "链路验收剧本.txt");
   const uploadedResponse = await fetch(`${baseUrl}/_wcu-api/skills/script-upload`, {
     body: uploadForm,
-    headers: { "x-lingqiong-service-secret": serviceSecret },
+    headers: { "x-wcu-internal-service-secret": serviceSecret },
     method: "POST"
   });
   const uploadedBody = await uploadedResponse.json().catch(() => ({}));
@@ -126,7 +128,7 @@ try {
     const removedUpload = await fetch(
       `${baseUrl}/_wcu-api/skills/script-upload?path=${encodeURIComponent(uploadedScriptPath)}`,
       {
-        headers: { "x-lingqiong-service-secret": serviceSecret },
+        headers: { "x-wcu-internal-service-secret": serviceSecret },
         method: "DELETE"
       }
     );

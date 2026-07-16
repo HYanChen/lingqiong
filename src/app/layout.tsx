@@ -65,13 +65,12 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const pathname = await requestPathname();
-  const data = isSeparatedRoute(pathname) ? null : await getPlatformSiteData();
+  const data = await getPlatformSiteData();
 
   return (
     <html data-scroll-behavior="smooth" lang="zh-CN">
       <body className="antialiased">
-        {data ? <AppShell data={data}>{children}</AppShell> : <main>{children}</main>}
+        <AppShell data={data}>{children}</AppShell>
       </body>
     </html>
   );

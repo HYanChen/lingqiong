@@ -8,8 +8,6 @@ services:
       - platform-api
       - new-api
       - bookstack
-      - jeecg-admin
-      - jeecg-system
     ports:
       - "127.0.0.1:18080:80"
     volumes:
@@ -33,90 +31,9 @@ services:
       PLATFORM_API_TIMEOUT_MS: "${PLATFORM_API_TIMEOUT_MS:-3500}"
       PLATFORM_RUNTIME_ROLE: web
       PLATFORM_AUTH_SECRET: "${PLATFORM_AUTH_SECRET:?PLATFORM_AUTH_SECRET is required}"
-      JEECG_SERVICE_SECRET: "${JEECG_SERVICE_SECRET:?JEECG_SERVICE_SECRET is required}"
       WCU_PUBLIC_BASE_URL: "${WCU_PUBLIC_BASE_URL:-https://pla.wiki}"
     volumes:
       - ./data/site-media:/app/data/site-media:ro
-
-  jeecg-db-init:
-    image: mysql:8.4@sha256:d36d39a64cd12a5c1cc9e6aa2bfb5f8d4c81a2f6586e0a04a9ae13939db02209
-    restart: "no"
-    depends_on:
-      mysql:
-        condition: service_healthy
-    environment:
-      MYSQL_PWD: "${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}"
-      MYSQL_USER: "${MYSQL_USER:?MYSQL_USER is required}"
-      MYSQL_PASSWORD: "${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}"
-    volumes:
-      - ./vendor/jeecg-boot/jeecg-boot/db/jeecgboot-mysql-5.7.sql:/bootstrap/jeecg.sql:ro
-      - ./vendor/jeecg-boot/jeecg-boot/jeecg-module-system/jeecg-system-start/src/main/resources/flyway/sql/mysql/V3.9.3_9__lingqiong_operations.sql:/bootstrap/lingqiong.sql:ro
-      - ./vendor/jeecg-boot/jeecg-boot/jeecg-module-system/jeecg-system-start/src/main/resources/flyway/sql/mysql/V3.9.3_10__lingqiong_single_admin.sql:/bootstrap/lingqiong-single-admin.sql:ro
-    command:
-      - sh
-      - -c
-      - |
-        mysql -hmysql -uroot -e "CREATE DATABASE IF NOT EXISTS jeecg_boot CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci; GRANT ALL PRIVILEGES ON jeecg_boot.* TO '$${MYSQL_USER}'@'%'; FLUSH PRIVILEGES;"
-        if ! mysql -hmysql -uroot -N -e "SELECT 1 FROM information_schema.tables WHERE table_schema='jeecg_boot' AND table_name='sys_user'" | grep -q 1; then
-          sed 's/`jeecg-boot`/`jeecg_boot`/g' /bootstrap/jeecg.sql | mysql -hmysql -uroot
-        fi
-        mysql --default-character-set=utf8mb4 -hmysql -uroot jeecg_boot < /bootstrap/lingqiong.sql
-        mysql --default-character-set=utf8mb4 -hmysql -uroot jeecg_boot < /bootstrap/lingqiong-single-admin.sql
-
-  jeecg-redis:
-    image: redis:7.4-alpine
-    container_name: lingqiong-jeecg-redis
-    restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
-    volumes:
-      - ./data/jeecg-redis:/data
-
-  jeecg-system:
-    image: lingqiong_jeecg_system:latest
-    build:
-      context: .
-      dockerfile: infra/jeecg/Dockerfile.system
-    container_name: lingqiong-jeecg-system
-    restart: unless-stopped
-    depends_on:
-      jeecg-db-init:
-        condition: service_completed_successfully
-      jeecg-redis:
-        condition: service_started
-    expose:
-      - "8080"
-    environment:
-      TZ: "${TZ:-Asia/Shanghai}"
-      JEECG_DB_HOST: mysql
-      JEECG_DB_PORT: "3306"
-      JEECG_DB_NAME: jeecg_boot
-      JEECG_DB_USER: "${MYSQL_USER:?MYSQL_USER is required}"
-      JEECG_DB_PASSWORD: "${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}"
-      LINGQIONG_DB_HOST: mysql
-      LINGQIONG_DB_PORT: "3306"
-      LINGQIONG_DB_NAME: "${MYSQL_DATABASE:?MYSQL_DATABASE is required}"
-      LINGQIONG_DB_USER: "${MYSQL_USER:?MYSQL_USER is required}"
-      LINGQIONG_DB_PASSWORD: "${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}"
-      JEECG_REDIS_HOST: jeecg-redis
-      JEECG_REDIS_PORT: "6379"
-      JEECG_LOW_CODE_MODE: prod
-      JEECG_SIGNATURE_SECRET: "${JEECG_SIGNATURE_SECRET:?JEECG_SIGNATURE_SECRET is required}"
-      LINGQIONG_PLATFORM_API_URL: http://platform-api:3000/api
-      LINGQIONG_SERVICE_SECRET: "${JEECG_SERVICE_SECRET:?JEECG_SERVICE_SECRET is required}"
-    volumes:
-      - ./data/site-media:/app/data/site-media
-
-  jeecg-admin:
-    image: lingqiong_jeecg_admin:latest
-    build:
-      context: .
-      dockerfile: infra/jeecg/Dockerfile.admin
-    container_name: lingqiong-jeecg-admin
-    restart: unless-stopped
-    depends_on:
-      - jeecg-system
-    expose:
-      - "80"
 
   platform-api:
     image: lingqiong_web:latest
@@ -143,7 +60,7 @@ services:
       ADMIN_SECRET: "${ADMIN_SECRET:?ADMIN_SECRET is required}"
       ADMIN_COOKIE_SECURE: "true"
       PLATFORM_AUTH_SECRET: "${PLATFORM_AUTH_SECRET:?PLATFORM_AUTH_SECRET is required}"
-      JEECG_SERVICE_SECRET: "${JEECG_SERVICE_SECRET:?JEECG_SERVICE_SECRET is required}"
+      WCU_INTERNAL_SERVICE_SECRET: "${WCU_INTERNAL_SERVICE_SECRET:?WCU_INTERNAL_SERVICE_SECRET is required}"
       NEW_API_ADMIN_PUBLIC_URL: "${NEW_API_ADMIN_PUBLIC_URL:-https://pla.wiki/api}"
       NEW_API_INTERNAL_BASE_URL: "${NEW_API_INTERNAL_BASE_URL:-http://new-api:3000/v1}"
       NEW_API_SERVER_BASE_URL: "${NEW_API_SERVER_BASE_URL:-http://new-api:3000}"

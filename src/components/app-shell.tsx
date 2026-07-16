@@ -1,3 +1,4 @@
+import { AppShellBoundary } from "@/components/app-shell-boundary";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { siteCopyValue, type SiteData } from "@/content/site";
@@ -9,14 +10,17 @@ type AppShellProps = {
 
 export function AppShell({ children, data }: AppShellProps) {
   return (
-    <>
-      <SiteHeader
-        brand={data.brand}
-        navItems={data.navItems}
-        worksLabel={siteCopyValue(data, "global.header.worksLabel", "查看作品")}
-      />
-      <main>{children}</main>
-      <SiteFooter data={data} />
-    </>
+    <AppShellBoundary
+      footer={<SiteFooter data={data} />}
+      header={
+        <SiteHeader
+          brand={data.brand}
+          navItems={data.navItems}
+          worksLabel={siteCopyValue(data, "global.header.worksLabel", "查看作品")}
+        />
+      }
+    >
+      {children}
+    </AppShellBoundary>
   );
 }

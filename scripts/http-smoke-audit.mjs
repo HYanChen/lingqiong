@@ -24,6 +24,17 @@ const publicPages = [
   "/wechat-login"
 ];
 
+const publicSiteShellPages = new Set([
+  "/",
+  "/universe",
+  "/works",
+  "/workflow",
+  "/services",
+  "/about",
+  "/login",
+  "/register"
+]);
+
 const protectedPages = [
   "/account",
   "/account/billing",
@@ -141,6 +152,10 @@ class CookieJar {
   get size() {
     return this.#cookies.size;
   }
+
+  has(name) {
+    return this.#cookies.has(name);
+  }
 }
 
 function splitSetCookieHeader(value) {
@@ -188,6 +203,19 @@ function requireStatus(response, expected, label) {
   );
 }
 
+async function requireSiteShell(response, label) {
+  const html = await response.text();
+
+  requireCondition(
+    html.includes('data-site-shell="header"'),
+    `${label} 缺少官网头部`
+  );
+  requireCondition(
+    html.includes('data-site-shell="footer"'),
+    `${label} 缺少官网尾部`
+  );
+}
+
 function requireLoginRedirect(response, requestedPath) {
   requireCondition(
     response.status >= 300 && response.status < 400,
@@ -217,15 +245,13 @@ const baseUrl = normalizeBaseUrl(process.env.BASE_URL || DEFAULT_BASE_URL);
 const requestTimeoutMs = timeoutValue();
 const explicitAdminUsername = process.env.SMOKE_ADMIN_USERNAME?.trim() || "";
 const explicitAdminPassword = process.env.SMOKE_ADMIN_PASSWORD || "";
-const legacyAdminSmoke = process.env.SMOKE_LEGACY_ADMIN === "1";
 const hasExplicitUsername = explicitAdminUsername.length > 0;
 const hasExplicitPassword = explicitAdminPassword.length > 0;
-const credentialConfigurationError = legacyAdminSmoke &&
-  hasExplicitUsername !== hasExplicitPassword
+const credentialConfigurationError = hasExplicitUsername !== hasExplicitPassword
     ? "SMOKE_ADMIN_USERNAME 与 SMOKE_ADMIN_PASSWORD 必须同时提供"
     : "";
 const useTemporaryAdmin =
-  legacyAdminSmoke && !hasExplicitUsername && !hasExplicitPassword;
+  !hasExplicitUsername && !hasExplicitPassword;
 const temporarySuffix = `${Date.now().toString(36)}.${randomBytes(4).toString("hex")}`;
 const temporaryAdminId = randomUUID();
 const temporaryAdminUsername = `http.audit.${temporarySuffix}`;
@@ -238,6 +264,15 @@ const temporaryAdminPasswordHash = scryptSync(
   temporaryAdminSalt,
   64
 ).toString("hex");
+const temporaryCreatorId = randomUUID();
+const temporaryCreatorUsername = `http.creator.${temporarySuffix}`;
+const temporaryCreatorPassword = `Creator-${randomBytes(18).toString("base64url")}!`;
+const temporaryCreatorSalt = randomBytes(16).toString("hex");
+const temporaryCreatorPasswordHash = scryptSync(
+  temporaryCreatorPassword,
+  temporaryCreatorSalt,
+  64
+).toString("hex");
 const adminUsername = useTemporaryAdmin
   ? temporaryAdminUsername
   : explicitAdminUsername;
@@ -246,6 +281,7 @@ const adminPassword = useTemporaryAdmin
   : explicitAdminPassword;
 const results = [];
 const adminCookies = new CookieJar();
+const creatorCookies = new CookieJar();
 let mainPool = null;
 
 function databaseValue(key, fallback) {
@@ -278,8 +314,11 @@ async function request(path, options = {}) {
   headers.set("Accept", options.accept || "application/json, text/html;q=0.9");
   headers.set("User-Agent", "wcu-http-smoke-audit/1.0");
 
-  if (options.authenticated && adminCookies.size > 0) {
-    headers.set("Cookie", adminCookies.header());
+  const cookieJar = options.cookieJar ||
+    (options.authenticated ? adminCookies : null);
+
+  if (cookieJar?.size > 0) {
+    headers.set("Cookie", cookieJar.header());
   }
 
   if (options.json !== undefined) {
@@ -296,7 +335,7 @@ async function request(path, options = {}) {
     });
 
     if (options.captureCookies) {
-      adminCookies.capture(response);
+      (cookieJar || adminCookies).capture(response);
     }
 
     return response;
@@ -348,6 +387,81 @@ async function createTemporaryAdmin() {
   );
 }
 
+async function createTemporaryCreator() {
+  const pool = getMainPool();
+
+  await pool.execute(
+    `INSERT INTO front_users (
+      id, username, account, contact, profile, invite_code, source,
+      password_hash, password_salt, active, failed_attempts, locked_until,
+      last_login_at, created_at, updated_at
+     ) VALUES (?, ?, ?, ?, '', NULL, 'login', ?, ?, 1, 0, NULL, NULL, ?, ?)`,
+    [
+      temporaryCreatorId,
+      temporaryCreatorUsername,
+      "HTTP 自动审计创作者",
+      `${temporaryCreatorUsername}@example.invalid`,
+      temporaryCreatorPasswordHash,
+      temporaryCreatorSalt,
+      temporaryAdminCreatedAt,
+      temporaryAdminCreatedAt
+    ]
+  );
+}
+
+async function cleanupTemporaryCreator() {
+  const errors = [];
+  const attempt = async (label, operation) => {
+    try {
+      await operation();
+    } catch (error) {
+      errors.push(`${label}: ${error instanceof Error ? error.message : "未知错误"}`);
+    }
+  };
+
+  if (creatorCookies.size > 0) {
+    await attempt("普通用户退出", async () => {
+      const response = await request("/_wcu-api/auth/logout", {
+        captureCookies: true,
+        cookieJar: creatorCookies,
+        method: "POST"
+      });
+      requireStatus(response, 200, "普通用户退出");
+    });
+  }
+
+  const pool = getMainPool();
+  await attempt("普通用户关联数据清理", () =>
+    pool.execute(
+      "DELETE FROM api_account_links WHERE principal_id = ? OR oidc_subject LIKE ?",
+      [temporaryCreatorId, `%${temporaryCreatorId}`]
+    )
+  );
+  await attempt("普通用户身份清理", () =>
+    pool.execute("DELETE FROM front_user_identities WHERE user_id = ?", [
+      temporaryCreatorId
+    ])
+  );
+  await attempt("普通用户清理", () =>
+    pool.execute("DELETE FROM front_users WHERE id = ? OR username = ?", [
+      temporaryCreatorId,
+      temporaryCreatorUsername
+    ])
+  );
+  await attempt("普通用户零残留校验", async () => {
+    const row = await first(
+      pool,
+      "SELECT COUNT(*) AS total FROM front_users WHERE id = ? OR username = ?",
+      [temporaryCreatorId, temporaryCreatorUsername]
+    );
+    requireCondition(Number(row?.total || 0) === 0, "一次性普通用户存在残留");
+  });
+
+  if (errors.length) {
+    throw new Error(errors.join("；"));
+  }
+}
+
 async function cleanupTemporaryAdmin() {
   const errors = [];
   const staleCookie = adminCookies.header();
@@ -361,7 +475,7 @@ async function cleanupTemporaryAdmin() {
 
   if (staleCookie) {
     await attempt("正式退出", async () => {
-      const response = await request("/_wcu-api/auth/logout", {
+      const response = await request("/_wcu-api/admin/logout", {
         authenticated: true,
         captureCookies: true,
         method: "POST"
@@ -528,11 +642,7 @@ function printSummary(startedAt) {
 
   const report = {
     baseUrl: baseUrl.origin + (baseUrl.pathname === "/" ? "" : baseUrl.pathname),
-    credentialMode: legacyAdminSmoke
-      ? useTemporaryAdmin
-        ? "temporary-owner"
-        : "external"
-      : "jeecg-service",
+    credentialMode: useTemporaryAdmin ? "temporary-owner" : "external",
     durationMs: Date.now() - startedAt,
     finishedAt: new Date().toISOString(),
     groups,
@@ -552,6 +662,7 @@ async function main() {
   const reachable = await check("public-pages", "公开首页 /", async () => {
     const response = await request("/", { accept: "text/html" });
     requireStatus(response, 200, "公开首页");
+    await requireSiteShell(response, "公开首页");
     return { httpStatus: response.status };
   });
 
@@ -563,14 +674,20 @@ async function main() {
     await check("public-pages", `公开页 ${path}`, async () => {
       const response = await request(path, { accept: "text/html" });
       requireStatus(response, 200, `公开页 ${path}`);
+      if (publicSiteShellPages.has(path)) {
+        await requireSiteShell(response, `公开页 ${path}`);
+      }
       return { httpStatus: response.status };
     });
   }
 
-  await check("admin-entry", "Jeecg 后台登录入口 /admin/", async () => {
-    const response = await request("/admin/", { accept: "text/html" });
-    requireStatus(response, 200, "Jeecg 后台登录入口");
-    return { architecture: "jeecg", httpStatus: response.status };
+  await check("admin-entry", "战纪宇宙原生后台入口 /admin", async () => {
+    const response = await request("/admin", { accept: "text/html" });
+    requireStatus(response, 200, "原生后台入口");
+    const html = await response.text();
+    requireCondition(!html.includes("JeecgBoot"), "后台入口仍返回 Jeecg");
+    requireCondition(!html.includes('data-site-shell="header"'), "后台重复加载官网头部");
+    return { architecture: "native", httpStatus: response.status };
   });
 
   for (const path of protectedPages) {
@@ -598,7 +715,6 @@ async function main() {
     });
   }
 
-  if (legacyAdminSmoke) {
   await check("access-control", "未登录不可读取后台内容", async () => {
     const response = await request("/_wcu-api/admin/content");
     requireStatus(response, 401, "后台内容权限");
@@ -614,9 +730,8 @@ async function main() {
   });
 
   await check("admin-auth", "管理员错误密码", async () => {
-    const response = await request("/_wcu-api/auth/login", {
+    const response = await request("/_wcu-api/admin/login", {
       json: {
-        mode: "admin",
         password: `invalid-${randomUUID()}`,
         username: adminUsername
       },
@@ -627,9 +742,9 @@ async function main() {
   });
 
   const loggedIn = await check("admin-auth", "管理员正确登录", async () => {
-    const response = await request("/_wcu-api/auth/login", {
+    const response = await request("/_wcu-api/admin/login", {
       captureCookies: true,
-      json: { mode: "admin", password: adminPassword, username: adminUsername },
+      json: { password: adminPassword, username: adminUsername },
       method: "POST"
     });
     requireStatus(response, 200, "管理员登录");
@@ -656,12 +771,40 @@ async function main() {
     };
   });
 
+  const creatorLoggedIn = await check(
+    "access-control",
+    "普通用户正确登录且不复用管理员会话",
+    async () => {
+      const response = await request("/_wcu-api/auth/login", {
+        captureCookies: true,
+        cookieJar: creatorCookies,
+        json: {
+          password: temporaryCreatorPassword,
+          username: temporaryCreatorUsername
+        },
+        method: "POST"
+      });
+      requireStatus(response, 200, "普通用户登录");
+      const body = await jsonBody(response, "普通用户登录");
+      requireCondition(body?.ok === true, "普通用户登录结果不正确");
+      requireCondition(
+        creatorCookies.has("wcu_platform_session"),
+        "普通用户未建立独立平台会话"
+      );
+      requireCondition(
+        !creatorCookies.has("wcu_admin"),
+        "普通用户错误获得管理员会话"
+      );
+      return { authenticated: true, httpStatus: response.status };
+    }
+  );
+
   for (const path of authenticatedPages) {
     await check("access-control", `已登录可访问 ${path}`, async () => {
-      requireCondition(loggedIn, "正确登录前置检查未通过");
+      requireCondition(creatorLoggedIn, "普通用户登录前置检查未通过");
       const response = await request(path, {
         accept: "text/html",
-        authenticated: true
+        cookieJar: creatorCookies
       });
       requireStatus(response, 200, `已登录页面 ${path}`);
       return { httpStatus: response.status };
@@ -708,6 +851,7 @@ async function main() {
           accept: "text/html"
         });
         requireStatus(response, 200, "作品详情");
+        await requireSiteShell(response, "作品详情");
         return { httpStatus: response.status };
       });
     }
@@ -719,6 +863,7 @@ async function main() {
           accept: "text/html"
         });
         requireStatus(response, 200, "人物详情");
+        await requireSiteShell(response, "人物详情");
         return { httpStatus: response.status };
       });
     }
@@ -768,8 +913,6 @@ async function main() {
 
     return { httpStatus: response.status, restored: true };
   });
-  }
-
   await check("project-types", "公开项目类型读取", async () => {
     const response = await request("/_wcu-api/project-types");
     requireStatus(response, 200, "公开项目类型");
@@ -778,8 +921,7 @@ async function main() {
     return { count: body.types.length, httpStatus: response.status };
   });
 
-  if (legacyAdminSmoke) {
-  await check("project-types", "旧后台项目类型读取", async () => {
+  await check("project-types", "原生后台项目类型读取", async () => {
     requireCondition(loggedIn, "正确登录前置检查未通过");
     const response = await request("/_wcu-api/admin/project-types", {
       authenticated: true
@@ -789,7 +931,6 @@ async function main() {
     requireCondition(body?.ok === true && Array.isArray(body?.types), "后台项目类型结构不正确");
     return { count: body.types.length, httpStatus: response.status };
   });
-  }
 
   await check("platform-api", "独立 API 健康检查", async () => {
     const response = await request("/platform-api/v1/health");
@@ -837,6 +978,8 @@ async function run() {
       await createTemporaryAdmin();
     }
 
+    await createTemporaryCreator();
+
     await main();
   } catch (error) {
     results.push({
@@ -846,6 +989,8 @@ async function run() {
       status: "failed"
     });
   } finally {
+    await check("清理", "一次性普通用户与会话零残留", cleanupTemporaryCreator);
+
     if (useTemporaryAdmin) {
       await check("cleanup", "一次性管理员与会话零残留", cleanupTemporaryAdmin);
     }

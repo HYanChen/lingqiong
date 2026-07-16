@@ -224,14 +224,56 @@ function inspectReleasePackage() {
   }
 }
 
+function inspectApplicationImagePolicy() {
+  const dockerfiles = ["Dockerfile", "Dockerfile.baota-local-build"].map(
+    (file) => readFileSync(resolve(root, file), "utf8")
+  );
+  const dockerignore = readFileSync(resolve(root, ".dockerignore"), "utf8");
+  const nextConfig = readFileSync(resolve(root, "next.config.ts"), "utf8");
+
+  record(
+    "应用镜像使用 Next standalone 精确运行产物",
+    nextConfig.includes('output: "standalone"') &&
+      dockerfiles.every(
+        (content) =>
+          content.includes("/app/.next/standalone") &&
+          content.includes('CMD ["node", "server.js"]')
+      )
+  );
+  record(
+    "应用镜像不再整仓复制构建容器",
+    dockerfiles.every(
+      (content) => !content.includes("COPY --from=builder /app ./")
+    )
+  );
+  record(
+    "standalone 镜像保留 OIDC 初始化脚本的最小数据库依赖",
+    dockerfiles.every(
+      (content) =>
+        content.includes("/app/node_modules/mysql2") &&
+        content.includes("/app/node_modules/aws-ssl-profiles") &&
+        content.includes("/app/node_modules/sql-escaper") &&
+        !content.includes("COPY --from=builder /app/node_modules ./node_modules")
+    )
+  );
+  record(
+    "Docker 上下文排除 Jeecg、文档、数据和本地配置",
+    ["vendor", "docs", "data", ".env*", ".next"].every((entry) =>
+      dockerignore.split(/\r?\n/u).includes(entry)
+    )
+  );
+  record(
+    "发布基础设施不再包含 Jeecg 构建入口",
+    collectFiles("infra").every((entry) => !entry.startsWith("infra/jeecg/"))
+  );
+}
+
 function audit() {
   const placeholderEnvironment = {
     ADMIN_PASSWORD: "parity-placeholder-admin-password",
     ADMIN_SECRET: "parity-placeholder-admin-secret",
     BOOKSTACK_APP_KEY:
       "base64:cGFyaXR5LXBsYWNlaG9sZGVyLWJvb2tzdGFjay1rZXk=",
-    JEECG_SERVICE_SECRET: "parity-placeholder-jeecg-service-secret",
-    JEECG_SIGNATURE_SECRET: "parity-placeholder-jeecg-signature-secret",
     MYSQL_DATABASE: "lingqiong_parity",
     MYSQL_PASSWORD: "parity-placeholder-mysql-password",
     MYSQL_ROOT_PASSWORD: "parity-placeholder-root-password",
@@ -239,6 +281,7 @@ function audit() {
     NEW_API_ACCOUNT_BRIDGE_SECRET: "parity-placeholder-bridge-secret",
     NEW_API_SESSION_SECRET: "parity-placeholder-session-secret",
     PLATFORM_AUTH_SECRET: "parity-placeholder-platform-secret",
+    WCU_INTERNAL_SERVICE_SECRET: "parity-placeholder-internal-service-secret",
     WCU_INVITE_CODES: "PARITY-PLACEHOLDER",
     WCU_OIDC_CLIENT_SECRET: "parity-placeholder-oidc-secret"
   };
@@ -260,6 +303,19 @@ function audit() {
     "本地与宝塔服务集合完全一致",
     sameJson(localServices, baotaServices),
     `local=${localServices.join(",")} baota=${baotaServices.join(",")}`
+  );
+  const retiredServices = [
+    "jeecg-admin",
+    "jeecg-system",
+    "jeecg-redis",
+    "jeecg-db-init"
+  ];
+  record(
+    "本地与宝塔均不再启动旧 Jeecg 运行时",
+    retiredServices.every(
+      (serviceName) =>
+        !localServices.includes(serviceName) && !baotaServices.includes(serviceName)
+    )
   );
 
   for (const serviceName of localServices) {
@@ -286,6 +342,58 @@ function audit() {
     Boolean(baota.services.web.image) &&
       baota.services.web.image === baota.services["platform-api"].image,
     `image=${baota.services.web.image || "missing"}`
+  );
+  record(
+    "Web 运行时不注入内部服务密钥",
+    [local, baota].every(
+      (compose) =>
+        !("WCU_INTERNAL_SERVICE_SECRET" in
+          (compose.services.web?.environment || {}))
+    )
+  );
+  record(
+    "API 运行时独占战纪宇宙内部服务密钥",
+    [local, baota].every((compose) =>
+      Boolean(
+        compose.services["platform-api"]?.environment
+          ?.WCU_INTERNAL_SERVICE_SECRET
+      )
+    )
+  );
+
+  const deploymentScript = readFileSync(
+    resolve(root, "scripts/deploy-baota.sh"),
+    "utf8"
+  );
+  record(
+    "宝塔部署将公网首页、登录和后台设为强制发布门禁",
+    [
+      'verify_public_html "/"',
+      'verify_public_html "/login"',
+      'verify_public_html "/admin"'
+    ].every((entry) => deploymentScript.includes(entry)) &&
+      !deploymentScript.includes("公网回环检查告警")
+  );
+  record(
+    "Git 失败后的归档回退跟随当前部署分支",
+    deploymentScript.includes("refs/heads/${BRANCH}")
+  );
+  record(
+    "公网后台门禁校验战纪宇宙原生标记并拒绝 Jeecg",
+    deploymentScript.includes("正在进入战纪宇宙运营后台") &&
+      /if grep -Eqi 'JeecgBoot\|Jeecg'[\s\S]*?\n\s+false\nfi/u.test(
+        deploymentScript
+      )
+  );
+  record(
+    "公网门禁位于切流之后并由统一错误处理执行回滚",
+    deploymentScript.indexOf('CUTOVER_STARTED=1') >= 0 &&
+      deploymentScript.indexOf('verify_public_html "/"') >
+        deploymentScript.indexOf('CUTOVER_STARTED=1') &&
+      deploymentScript.includes("trap on_error ERR") &&
+      /on_error\(\)[\s\S]*?restore_previous \|\| true[\s\S]*?exit "\$status"/u.test(
+        deploymentScript
+      )
   );
 
   const dependencyServices = [
@@ -336,6 +444,26 @@ function audit() {
       relativeToRoot(baotaNginxMount.source) === "infra/nginx/default.conf" &&
       localNginxMount.read_only === true &&
       baotaNginxMount.read_only === true
+  );
+  const nginxConfig = readFileSync(
+    resolve(root, "infra/nginx/default.conf"),
+    "utf8"
+  );
+  const adminLoginGuard = readFileSync(
+    resolve(root, "src/lib/admin-login-guard.ts"),
+    "utf8"
+  );
+  record(
+    "宝塔代理链为后台限流传递规范化客户端地址",
+    nginxConfig.includes(
+      "map $http_x_forwarded_for $wcu_client_ip"
+    ) &&
+      nginxConfig.includes(
+        "proxy_set_header X-WCU-Client-IP $wcu_client_ip;"
+      ) &&
+      adminLoginGuard.indexOf('request.headers.get("x-wcu-client-ip")') >= 0 &&
+      adminLoginGuard.indexOf('request.headers.get("x-wcu-client-ip")') <
+        adminLoginGuard.indexOf('request.headers.get("x-real-ip")')
   );
 
   const exactRouteEnvironment = {
@@ -441,6 +569,7 @@ function audit() {
     })
   );
 
+  inspectApplicationImagePolicy();
   inspectReleasePackage();
 }
 

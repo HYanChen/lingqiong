@@ -3,7 +3,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 
-const baseUrl = new URL(process.env.BASE_URL || "http://127.0.0.1");
+const baseUrl = new URL(process.env.BASE_URL || "http://localhost");
 
 function envValue(key) {
   for (const file of [".env.local", ".env", ".env.baota", ".env.new-api.example"]) {
@@ -21,9 +21,9 @@ const ownerUsername = process.env.ADMIN_USERNAME || envValue("ADMIN_USERNAME") |
 const ownerPassword = process.env.ADMIN_PASSWORD || envValue("ADMIN_PASSWORD") || "zhanji2026";
 const serviceSecret =
   process.env.RBAC_TEST_SERVICE_SECRET ||
-  process.env.JEECG_SERVICE_SECRET ||
-  envValue("JEECG_SERVICE_SECRET") ||
-  "";
+  process.env.WCU_INTERNAL_SERVICE_SECRET ||
+  envValue("WCU_INTERNAL_SERVICE_SECRET") ||
+  "zhanji-wcu-internal-service-local-secret";
 
 class CookieJar {
   cookies = new Map();
@@ -50,7 +50,7 @@ async function request(path, { jar, json, method = "GET", service = false } = {}
   const headers = new Headers({ Accept: "application/json" });
   if (jar?.cookies.size) headers.set("Cookie", jar.header());
   if (service && serviceSecret) {
-    headers.set("X-Lingqiong-Service-Secret", serviceSecret);
+    headers.set("X-WCU-Internal-Service-Secret", serviceSecret);
   }
   if (json !== undefined) headers.set("Content-Type", "application/json");
   const response = await fetch(new URL(path, baseUrl), {

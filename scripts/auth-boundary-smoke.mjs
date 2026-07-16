@@ -259,12 +259,13 @@ async function main() {
   requireCondition(!loginHtml.includes("管理员登录"), "前台登录页暴露了管理员登录文案");
 
   const adminEntry = await request("/admin", { accept: "text/html" });
+  requireCondition(adminEntry.status === 200, "原生 /admin 后台页面不可用");
+  const adminHtml = await adminEntry.text();
+  requireCondition(!adminHtml.includes("JeecgBoot"), "/admin 仍返回 Jeecg 后台");
   requireCondition(
-    adminEntry.status === 308 && adminEntry.headers.get("location") === "/admin/",
-    "匿名 /admin 未按规范进入 Jeecg 独立后台"
+    !adminHtml.includes('data-site-shell="header"'),
+    "原生后台重复加载了官网头部"
   );
-  const adminPage = await request("/admin/", { accept: "text/html" });
-  requireCondition(adminPage.status === 200, "Jeecg 独立后台页面不可用");
 
   const crossedFront = await request("/_wcu-api/auth/login", {
     json: { password: adminPassword, username: adminUsername },
@@ -279,6 +280,7 @@ async function main() {
   requireCondition(frontLogin.status === 200, "普通用户账号密码登录失败");
   requireCondition(jar.has("wcu_platform_session"), "普通用户会话未建立");
   requireCondition(!jar.has("wcu_admin"), "普通用户登录错误建立后台会话");
+  const creatorPlatformSession = jar.cookies.get("wcu_platform_session");
 
   const projects = await request("/projects", { accept: "text/html" });
   requireCondition(projects.status === 200, "普通用户无法进入项目页");
@@ -295,7 +297,10 @@ async function main() {
   });
   requireCondition(adminLogin.status === 200, "管理员独立登录失败");
   requireCondition(jar.has("wcu_admin"), "后台会话未建立");
-  requireCondition(jar.has("wcu_platform_session"), "后台登录覆盖了普通用户会话");
+  requireCondition(
+    jar.cookies.get("wcu_platform_session") === creatorPlatformSession,
+    "后台登录覆盖了普通用户会话"
+  );
 
   const content = await request("/_wcu-api/admin/content");
   requireCondition(content.status === 200, "后台内容读取失败");

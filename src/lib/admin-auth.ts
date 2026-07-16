@@ -70,14 +70,14 @@ function signaturesMatch(actual: string, expected: string) {
   );
 }
 
-async function getJeecgServiceUser(): Promise<PublicAdminUser | null> {
-  const expected = process.env.JEECG_SERVICE_SECRET?.trim();
+async function getInternalServiceUser(): Promise<PublicAdminUser | null> {
+  const expected = process.env.WCU_INTERNAL_SERVICE_SECRET?.trim();
 
   if (!expected) {
     return null;
   }
 
-  const actual = (await headers()).get("x-lingqiong-service-secret")?.trim();
+  const actual = (await headers()).get("x-wcu-internal-service-secret")?.trim();
 
   if (!actual || !signaturesMatch(actual, expected)) {
     return null;
@@ -86,13 +86,13 @@ async function getJeecgServiceUser(): Promise<PublicAdminUser | null> {
   return {
     active: true,
     createdAt: "2026-01-01T00:00:00.000Z",
-    displayName: "JeecgBoot 服务",
-    id: "jeecg-service",
+    displayName: "战纪宇宙内部服务",
+    id: "wcu-internal-service",
     lastLoginAt: null,
     permissions: allAdminPermissions,
     role: "owner",
     updatedAt: "2026-01-01T00:00:00.000Z",
-    username: "jeecg-service"
+    username: "wcu-internal-service"
   };
 }
 
@@ -191,7 +191,7 @@ export async function clearAdminSession() {
 }
 
 export async function getAdminSession() {
-  const serviceUser = await getJeecgServiceUser();
+  const serviceUser = await getInternalServiceUser();
 
   if (serviceUser) {
     return serviceUser;

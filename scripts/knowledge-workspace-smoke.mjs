@@ -25,7 +25,7 @@ const baseUrl = (
   ""
 );
 const localServiceSecret = ["localhost", "127.0.0.1"].includes(new URL(baseUrl).hostname)
-  ? "zhanji-jeecg-service-local-secret"
+  ? "zhanji-wcu-internal-service-local-secret"
   : "";
 const username =
   process.env.KNOWLEDGE_TEST_ADMIN_USERNAME ||
@@ -38,8 +38,8 @@ const password =
   "zhanji2026";
 const serviceSecret =
   process.env.KNOWLEDGE_TEST_SERVICE_SECRET ||
-  process.env.JEECG_SERVICE_SECRET ||
-  envFileValue("JEECG_SERVICE_SECRET") ||
+  process.env.WCU_INTERNAL_SERVICE_SECRET ||
+  envFileValue("WCU_INTERNAL_SERVICE_SECRET") ||
   localServiceSecret;
 const apiRoot = `${baseUrl}/_wcu-api/knowledge`;
 const checks = [];
@@ -135,7 +135,7 @@ async function request(url, options = {}) {
   }
 
   if (serviceSecret) {
-    headers.set("x-lingqiong-service-secret", serviceSecret);
+    headers.set("x-wcu-internal-service-secret", serviceSecret);
   }
 
   const sessionCookies = cookieHeader();

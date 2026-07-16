@@ -36,7 +36,10 @@ export function SiteHeader({ brand, navItems, worksLabel = "查看作品" }: Sit
   }, [open]);
 
   return (
-    <header className="fixed left-0 right-0 top-0 z-50 border-b border-white/10 bg-zinc-950/68 backdrop-blur-2xl">
+    <header
+      className="fixed left-0 right-0 top-0 z-50 border-b border-white/10 bg-zinc-950/68 backdrop-blur-2xl"
+      data-site-shell="header"
+    >
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 md:px-8">
         <Link
           aria-label="战纪宇宙首页"

@@ -16,7 +16,7 @@ const apiPrefix = (process.env.KNOWLEDGE_TEST_API_PREFIX || "/_wcu-api").replace
   ""
 );
 const localServiceSecret = ["localhost", "127.0.0.1"].includes(new URL(baseUrl).hostname)
-  ? "zhanji-jeecg-service-local-secret"
+  ? "zhanji-wcu-internal-service-local-secret"
   : "";
 function envFileValue(key) {
   for (const filename of [".env.local", ".env", ".env.baota", ".env.new-api.example"]) {
@@ -41,8 +41,8 @@ const password =
   "zhanji2026";
 const serviceSecret =
   process.env.KNOWLEDGE_TEST_SERVICE_SECRET ||
-  process.env.JEECG_SERVICE_SECRET ||
-  envFileValue("JEECG_SERVICE_SECRET") ||
+  process.env.WCU_INTERNAL_SERVICE_SECRET ||
+  envFileValue("WCU_INTERNAL_SERVICE_SECRET") ||
   localServiceSecret;
 
 function apiUrl(path) {
@@ -104,7 +104,7 @@ const authenticated = (path, options = {}) =>
     headers: {
       ...(cookie ? { cookie } : {}),
       ...(serviceSecret
-        ? { "x-lingqiong-service-secret": serviceSecret }
+        ? { "x-wcu-internal-service-secret": serviceSecret }
         : {}),
       ...(options.headers || {})
     }

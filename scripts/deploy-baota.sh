@@ -5,7 +5,7 @@ ROOT="${DEPLOY_ROOT:-/www/wwwroot/pla.wiki}"
 BACKUP_ROOT="${DEPLOY_BACKUP_ROOT:-/www/backup}"
 REPOSITORY="${DEPLOY_REPOSITORY:-https://github.com/HYanChen/lingqiong.git}"
 BRANCH="${DEPLOY_BRANCH:-codex/jeecgboot-full-rebuild}"
-ARCHIVE_URL="${DEPLOY_ARCHIVE_URL:-https://codeload.github.com/HYanChen/lingqiong/tar.gz/refs/heads/codex/jeecgboot-full-rebuild}"
+ARCHIVE_URL="${DEPLOY_ARCHIVE_URL:-https://codeload.github.com/HYanChen/lingqiong/tar.gz/refs/heads/${BRANCH}}"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 RELEASE="/www/wwwroot/.pla.wiki-release-${STAMP}"
 PREVIOUS="${BACKUP_ROOT}/pla.wiki-prev-${STAMP}"
@@ -111,26 +111,32 @@ if [[ -f "$ROOT/.env" ]]; then
 else
   cp "$ROOT/.env.baota" "$RELEASE/.env"
 fi
-ensure_env_value "$RELEASE/.env.baota" JEECG_SIGNATURE_SECRET "$(openssl rand -hex 48)"
-ensure_env_value "$RELEASE/.env.baota" JEECG_SERVICE_SECRET "$(openssl rand -hex 48)"
+ensure_env_value "$RELEASE/.env.baota" WCU_INTERNAL_SERVICE_SECRET "$(openssl rand -hex 48)"
 cp "$RELEASE/.env.baota" "$RELEASE/.env"
 chmod 600 "$RELEASE/.env" "$RELEASE/.env.baota"
 
 stage "2/8 校验生产编排"
 compose_at "$RELEASE" config >/dev/null
+RUNTIME_SERVICES="$(compose_at "$RELEASE" config --services)"
+for required_service in proxy web platform-api new-api bookstack mysql; do
+  grep -qx "$required_service" <<<"$RUNTIME_SERVICES" || {
+    echo "生产编排缺少核心服务：$required_service"
+    exit 1
+  }
+done
+for retired_service in jeecg-admin jeecg-system jeecg-redis jeecg-db-init; do
+  if grep -qx "$retired_service" <<<"$RUNTIME_SERVICES"; then
+    echo "生产编排仍包含已停用服务：$retired_service"
+    exit 1
+  fi
+done
 
-stage "3/8 预构建官网与 JeecgBoot"
+stage "3/8 预构建战纪宇宙官网与原生后台"
 if [[ "${SKIP_APP_BUILDS:-0}" == "1" ]]; then
-  for image_name in lingqiong_web:latest lingqiong_jeecg_system:latest lingqiong_jeecg_admin:latest; do
-    docker image inspect "$image_name" >/dev/null
-  done
-  echo "使用已构建并验证的官网、Jeecg 服务端和管理端镜像。"
-elif [[ "${SKIP_JEECG_ADMIN_BUILD:-0}" == "1" ]]; then
-  docker image inspect lingqiong_jeecg_admin:latest >/dev/null
-  echo "使用已导入并验证的 Jeecg 管理端镜像。"
-  DOCKER_BUILDKIT=1 compose_at "$RELEASE" build web jeecg-system
+  docker image inspect lingqiong_web:latest >/dev/null
+  echo "使用已构建并验证的战纪宇宙应用镜像。"
 else
-  DOCKER_BUILDKIT=1 compose_at "$RELEASE" build web jeecg-system jeecg-admin
+  DOCKER_BUILDKIT=1 compose_at "$RELEASE" build web
 fi
 
 stage "4/8 备份代码、数据库和当前镜像"
@@ -157,8 +163,8 @@ ready=0
 for attempt in $(seq 1 90); do
   if curl -fsS http://localhost:18080/platform-api/v1/health >/dev/null 2>&1 \
     && curl -fsS http://localhost:18080/ >/dev/null 2>&1 \
-    && curl -fsS http://localhost:18080/admin/ >/dev/null 2>&1 \
-    && curl -fsS "http://localhost:18080/jeecgboot/sys/randomImage/deploy-${STAMP}" >/dev/null 2>&1; then
+    && curl -fsS http://localhost:18080/admin >/dev/null 2>&1 \
+    && curl -fsS http://localhost:18080/_wcu-api/admin/me >/dev/null 2>&1; then
     ready=1
     break
   fi
@@ -166,7 +172,7 @@ for attempt in $(seq 1 90); do
 done
 [[ "$ready" == "1" ]] || { echo "核心服务未在限时内就绪"; exit 1; }
 
-stage "7/8 写入微信登录配置并加固后台密码"
+stage "7/8 写入微信登录配置并验证原生后台"
 set -a
 # shellcheck disable=SC1091
 source "$ROOT/.env.baota"
@@ -175,12 +181,13 @@ set +a
 docker exec -i \
   -e WX_APP_ID="$WECHAT_APP_ID" \
   -e WX_APP_SECRET="$WECHAT_APP_SECRET" \
+  -e WCU_INTERNAL_SERVICE_SECRET="$WCU_INTERNAL_SERVICE_SECRET" \
   lingqiong-platform-api node <<'NODE'
 const run = async () => {
   const url = 'http://127.0.0.1:3000/api/admin/login-settings';
   const headers = {
     'Content-Type': 'application/json',
-    'X-Lingqiong-Service-Secret': process.env.JEECG_SERVICE_SECRET,
+    'X-WCU-Internal-Service-Secret': process.env.WCU_INTERNAL_SERVICE_SECRET,
   };
   const payload = {
     wechat: {
@@ -214,72 +221,84 @@ run().catch((error) => {
 });
 NODE
 
-CHECK_KEY="deploy-admin-${STAMP}"
-CAPTCHA_KEYS_BEFORE="$(mktemp)"
-CAPTCHA_KEYS_AFTER="$(mktemp)"
-docker exec lingqiong-jeecg-redis redis-cli --raw KEYS '*' | sort > "$CAPTCHA_KEYS_BEFORE"
-curl -fsS "http://localhost:18080/jeecgboot/sys/randomImage/${CHECK_KEY}" >/tmp/lingqiong-jeecg-captcha.json
-docker exec lingqiong-jeecg-redis redis-cli --raw KEYS '*' | sort > "$CAPTCHA_KEYS_AFTER"
-REDIS_KEY="$(comm -13 "$CAPTCHA_KEYS_BEFORE" "$CAPTCHA_KEYS_AFTER" | head -1)"
-rm -f "$CAPTCHA_KEYS_BEFORE" "$CAPTCHA_KEYS_AFTER"
-if [[ -n "$REDIS_KEY" && -n "${ADMIN_PASSWORD:-}" ]]; then
-  CAPTCHA="$(docker exec lingqiong-jeecg-redis redis-cli --raw GET "$REDIS_KEY" | tr -d '"\r\n')"
-  LOGIN_PAYLOAD="$(CAPTCHA="$CAPTCHA" CHECK_KEY="$CHECK_KEY" python3 - <<'PY'
+ADMIN_SMOKE_COOKIE="/tmp/lingqiong-native-admin-${STAMP}.cookies"
+ADMIN_SMOKE_LOGIN="/tmp/lingqiong-native-admin-${STAMP}.login.json"
+ADMIN_SMOKE_ME="/tmp/lingqiong-native-admin-${STAMP}.me.json"
+LOGIN_PAYLOAD="$(ADMIN_SMOKE_USERNAME="${ADMIN_USERNAME:-admin}" ADMIN_SMOKE_PASSWORD="$ADMIN_PASSWORD" python3 - <<'PY'
 import json
 import os
 print(json.dumps({
-    'username': 'admin',
-    'password': '123456',
-    'captcha': os.environ['CAPTCHA'],
-    'checkKey': os.environ['CHECK_KEY'],
+    'username': os.environ['ADMIN_SMOKE_USERNAME'],
+    'password': os.environ['ADMIN_SMOKE_PASSWORD'],
 }))
 PY
 )"
-  curl -fsS -H 'Content-Type: application/json' --data "$LOGIN_PAYLOAD" \
-    http://localhost:18080/jeecgboot/sys/login >/tmp/lingqiong-jeecg-login.json
-  JEECG_TOKEN="$(python3 - <<'PY'
-import json
-try:
-    with open('/tmp/lingqiong-jeecg-login.json', encoding='utf-8') as handle:
-        print(json.load(handle).get('result', {}).get('token', ''))
-except Exception:
-    print('')
-PY
-)"
-  if [[ -n "$JEECG_TOKEN" ]]; then
-    PASSWORD_PAYLOAD="$(python3 - <<'PY'
+curl -fsS -c "$ADMIN_SMOKE_COOKIE" -H 'Content-Type: application/json' \
+  --data "$LOGIN_PAYLOAD" \
+  http://localhost:18080/_wcu-api/admin/login > "$ADMIN_SMOKE_LOGIN"
+curl -fsS -b "$ADMIN_SMOKE_COOKIE" \
+  http://localhost:18080/_wcu-api/admin/me > "$ADMIN_SMOKE_ME"
+ADMIN_SMOKE_LOGIN="$ADMIN_SMOKE_LOGIN" ADMIN_SMOKE_ME="$ADMIN_SMOKE_ME" python3 - <<'PY'
 import json
 import os
-print(json.dumps({'username': 'admin', 'password': os.environ['ADMIN_PASSWORD']}))
+
+try:
+    with open(os.environ['ADMIN_SMOKE_LOGIN'], encoding='utf-8') as handle:
+        login = json.load(handle)
+    with open(os.environ['ADMIN_SMOKE_ME'], encoding='utf-8') as handle:
+        current = json.load(handle)
+except (OSError, ValueError) as error:
+    raise SystemExit(f'原生后台响应无效：{error}')
+
+if login.get('ok') is not True or current.get('authenticated') is not True:
+    raise SystemExit('原生后台登录会话验证失败')
 PY
-)"
-    curl -fsS -X PUT -H 'Content-Type: application/json' \
-      -H "X-Access-Token: ${JEECG_TOKEN}" --data "$PASSWORD_PAYLOAD" \
-      http://localhost:18080/jeecgboot/sys/user/changePassword >/tmp/lingqiong-jeecg-password.json
-  fi
-fi
+curl -fsS -b "$ADMIN_SMOKE_COOKIE" -X POST \
+  http://localhost:18080/_wcu-api/admin/logout >/dev/null
+rm -f "$ADMIN_SMOKE_COOKIE" "$ADMIN_SMOKE_LOGIN" "$ADMIN_SMOKE_ME"
 
 stage "8/8 线上功能验收"
 curl -fsS http://localhost:18080/ >/dev/null
 curl -fsS http://localhost:18080/login >/dev/null
-curl -fsS http://localhost:18080/admin/ >/dev/null
-curl -fsS "http://localhost:18080/jeecgboot/sys/randomImage/final-${STAMP}" >/dev/null
-DEPLOY_ROOT="$ROOT" \
-JEECG_SMOKE_BASE="http://localhost:18080/jeecgboot" \
-JEECG_SMOKE_PLATFORM_BASE="http://localhost:18080/_wcu-api" \
-JEECG_SMOKE_ENV_FILE="$ROOT/.env.baota" \
-JEECG_SMOKE_REDIS_CONTAINER="lingqiong-jeecg-redis" \
-  bash "$ROOT/scripts/smoke-jeecg-production.sh"
+curl -fsS http://localhost:18080/admin >/dev/null
+curl -fsS http://localhost:18080/_wcu-api/admin/me >/dev/null
 docker exec \
   -e WCU_AUDIT_BASE_URL="http://proxy" \
-  -e LINGQIONG_SERVICE_SECRET="$JEECG_SERVICE_SECRET" \
+  -e WCU_INTERNAL_SERVICE_SECRET="$WCU_INTERNAL_SERVICE_SECRET" \
   lingqiong-platform-api node scripts/skill-linkage-smoke.mjs
-for public_url in \
-  https://pla.wiki/ \
-  https://pla.wiki/login \
-  https://pla.wiki/admin/; do
-  curl -fsS "$public_url" >/dev/null 2>&1 \
-    || echo "公网回环检查告警（将由外部验收）：$public_url"
-done
+
+# 公网验收发生在切流之后。这里的任一请求或内容断言失败都会触发
+# ERR trap，并由 on_error 恢复上一版本，不能降级为告警后继续发布。
+PUBLIC_BASE_URL="${WCU_PUBLIC_BASE_URL%/}"
+PUBLIC_SMOKE_DIR="$RELEASE/.public-smoke"
+mkdir -p "$PUBLIC_SMOKE_DIR"
+
+verify_public_html() {
+  local route="$1"
+  local label="$2"
+  local marker="$3"
+  local output="$4"
+  local url="${PUBLIC_BASE_URL}${route}"
+
+  echo "验收公网入口：${label} ${url}"
+  curl -fL --silent --show-error \
+    --retry 3 --retry-delay 2 --connect-timeout 10 --max-time 45 \
+    "$url" -o "$output"
+
+  if ! grep -Fq "$marker" "$output"; then
+    echo "公网入口内容校验失败：${label} 缺少标记「${marker}」"
+    return 1
+  fi
+}
+
+verify_public_html "/" "官网首页" "战纪宇宙" "$PUBLIC_SMOKE_DIR/home.html"
+verify_public_html "/login" "统一登录" "战纪宇宙统一登录" "$PUBLIC_SMOKE_DIR/login.html"
+verify_public_html "/admin" "原生运营后台" "正在进入战纪宇宙运营后台" "$PUBLIC_SMOKE_DIR/admin.html"
+
+if grep -Eqi 'JeecgBoot|Jeecg' "$PUBLIC_SMOKE_DIR/admin.html"; then
+  echo "公网 /admin 错误返回 Jeecg 页面，拒绝完成部署。"
+  false
+fi
+
 compose_at "$ROOT" ps
 echo "DEPLOYMENT_SUCCESS ${STAMP}"

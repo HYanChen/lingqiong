@@ -7,6 +7,7 @@ const platformApiProxyTarget = process.env.PLATFORM_API_PROXY_TARGET?.trim().rep
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1"],
+  output: "standalone",
   experimental: {
     proxyClientMaxBodySize: "22mb"
   },

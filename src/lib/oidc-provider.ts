@@ -7,7 +7,14 @@ import {
   randomUUID,
   timingSafeEqual
 } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  linkSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync
+} from "node:fs";
 import { dirname, join } from "node:path";
 
 import { writeDatabase } from "@/lib/database";
@@ -37,15 +44,15 @@ function oidcPrivateKeyPath() {
   );
 }
 
-function loadOidcPrivateKeyPem() {
+function loadOidcPrivateKey() {
   const keyPath = oidcPrivateKeyPath();
 
   try {
     if (existsSync(keyPath)) {
-      return readFileSync(keyPath, "utf8");
+      return createPrivateKey(readFileSync(keyPath, "utf8"));
     }
-  } catch {
-    // Fall through and generate a new key.
+  } catch (error) {
+    throw new Error(`OIDC 签名私钥无法解析：${keyPath}`, { cause: error });
   }
 
   const generatedKeyPair = generateKeyPairSync("rsa", { modulusLength: 2048 });
@@ -55,17 +62,41 @@ function loadOidcPrivateKeyPem() {
 
   try {
     mkdirSync(dirname(keyPath), { recursive: true });
-    writeFileSync(keyPath, pem, { mode: 0o600 });
+    const temporaryPath = `${keyPath}.${process.pid}.${randomUUID()}.tmp`;
+
+    try {
+      // Publish the fully-written key atomically. Next.js may load route modules in
+      // multiple workers, so writing directly to the final path can expose a
+      // truncated PEM to another worker and make OpenSSL fail with DECODER errors.
+      writeFileSync(temporaryPath, pem, { mode: 0o600 });
+      linkSync(temporaryPath, keyPath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+        return createPrivateKey(readFileSync(keyPath, "utf8"));
+      }
+
+      throw error;
+    } finally {
+      rmSync(temporaryPath, { force: true });
+    }
   } catch {
     // If persistence is unavailable, keep the in-memory key for this process.
   }
 
-  return pem;
+  return generatedKeyPair.privateKey;
 }
 
-const privateKeyPem = loadOidcPrivateKeyPem();
-const privateKey = createPrivateKey(privateKeyPem);
-const publicKey = createPublicKey(privateKeyPem);
+let oidcPrivateKey: ReturnType<typeof createPrivateKey> | null = null;
+let oidcPublicKey: ReturnType<typeof createPublicKey> | null = null;
+
+function oidcKeyPair() {
+  oidcPrivateKey ??= loadOidcPrivateKey();
+  oidcPublicKey ??= createPublicKey(
+    oidcPrivateKey.export({ format: "pem", type: "pkcs8" })
+  );
+
+  return { privateKey: oidcPrivateKey, publicKey: oidcPublicKey };
+}
 
 function oidcSecret() {
   return (
@@ -203,6 +234,7 @@ export function internalOidcPath(path: string) {
 }
 
 export function oidcPublicJwks() {
+  const { publicKey } = oidcKeyPair();
   const jwk = publicKey.export({ format: "jwk" }) as JsonWebKey;
 
   return {
@@ -355,6 +387,7 @@ export async function consumeOidcAuthorizationCode(code: string, redirectUri: st
 }
 
 export function signOidcIdToken(ticket: OidcTicket) {
+  const { privateKey } = oidcKeyPair();
   const now = Math.floor(Date.now() / 1000);
   const header = base64UrlJson({
     alg: "RS256",

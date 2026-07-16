@@ -9,7 +9,7 @@ import {
   type AdminPermission,
   type AdminRole
 } from "@/lib/admin-permissions";
-import { getAdminUserById, type PublicAdminUser } from "@/lib/admin-users";
+import { getAdminUserById } from "@/lib/admin-users";
 import type { StoredFrontUser } from "@/lib/front-users";
 
 export const platformSessionCookieName = "wcu_platform_session";
@@ -68,28 +68,28 @@ function signaturesMatch(a: string, b: string) {
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
-async function getJeecgServiceSession(): Promise<PlatformSessionUser | null> {
-  const expected = process.env.JEECG_SERVICE_SECRET?.trim();
+async function getInternalServiceSession(): Promise<PlatformSessionUser | null> {
+  const expected = process.env.WCU_INTERNAL_SERVICE_SECRET?.trim();
 
   if (!expected) {
     return null;
   }
 
-  const actual = (await headers()).get("x-lingqiong-service-secret")?.trim();
+  const actual = (await headers()).get("x-wcu-internal-service-secret")?.trim();
 
   if (!actual || !signaturesMatch(actual, expected)) {
     return null;
   }
 
   return {
-    account: "JeecgBoot 服务",
-    adminId: "jeecg-service",
+    account: "战纪宇宙内部服务",
+    adminId: "wcu-internal-service",
     adminPermissions: allAdminPermissions,
     adminRole: "owner",
     adminSessionVersion: "2026-01-01T00:00:00.000Z",
     createdAt: "2026-01-01T00:00:00.000Z",
     exp: Math.floor(Date.now() / 1000) + 300,
-    id: "jeecg-service",
+    id: "wcu-internal-service",
     profile: "后台内部服务",
     role: "admin",
     source: "admin"
@@ -172,23 +172,6 @@ export function platformUserFromFrontUser(
   };
 }
 
-export function adminPlatformUser(
-  admin: PublicAdminUser
-): Omit<PlatformSessionUser, "exp"> {
-  return {
-    account: admin.displayName || admin.username,
-    adminId: admin.id,
-    adminPermissions: admin.permissions,
-    adminRole: admin.role,
-    adminSessionVersion: admin.updatedAt,
-    createdAt: admin.createdAt,
-    id: admin.id,
-    profile: "系统管理",
-    role: "admin",
-    source: "admin"
-  };
-}
-
 export async function setPlatformSession(user: Omit<PlatformSessionUser, "exp">) {
   const cookieStore = await cookies();
   cookieStore.set(newApiSessionCookieName, "", {
@@ -226,7 +209,7 @@ export async function clearPlatformSession() {
 }
 
 export async function getPlatformSession() {
-  const serviceSession = await getJeecgServiceSession();
+  const serviceSession = await getInternalServiceSession();
 
   if (serviceSession) {
     return serviceSession;
